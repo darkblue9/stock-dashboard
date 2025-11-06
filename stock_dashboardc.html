@@ -412,9 +412,12 @@ async function cloudSave(){
   if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. Apps Script 웹앱 URL을 넣어주세요.'); return; }
   try{
     const payload = { id: CLOUD_ID, rows, settings, ts: Date.now() };
-    const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), {
-      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)
-    });
+    const res = await fetch(CLOUD_URL + "?id=" + encodeURIComponent(CLOUD_ID), {
+  method: "POST",
+  headers: { "Content-Type": "text/plain;charset=UTF-8" }, // ← 이걸로!
+  body: JSON.stringify(payload),
+});
+
     if(!res.ok) throw new Error("HTTP "+res.status);
     setStatus("클라우드 저장 완료", true);
     alert("클라우드 저장 완료");
