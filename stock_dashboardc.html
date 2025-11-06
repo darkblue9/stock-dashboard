@@ -28,6 +28,12 @@ td input[readonly]{background:#f9f9f9}
 .target-cell{display:flex;align-items:center;gap:6px;justify-content:center}
 .target-cell input[type="number"]{width:72px}
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
+
+/* ===== Column width tweaks ===== */
+col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
+col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
+col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
+
 </style>
 </head>
 <body>
