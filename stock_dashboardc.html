@@ -28,16 +28,6 @@ td input[readonly]{background:#f9f9f9}
 .target-cell{display:flex;align-items:center;gap:6px;justify-content:center}
 .target-cell input[type="number"]{width:72px}
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
-
-/* 손익(원)/손익(%) 열 폭 약 15% 축소 */
-col.col-profit{width:6.8%}
-col.col-percent{width:5.1%}
-
-
-
-
-/* 주수 컬럼 폭 절반 축소 (픽셀 단위 적용) */
-col.col-qty{width:40px;}
 </style>
 </head>
 <body>
@@ -63,21 +53,21 @@ col.col-qty{width:40px;}
   <span id="status" class="status">상태: 대기</span>
 </div>
 
-<table
+<table id="grid">
   <colgroup>
-    <col class='col-code'>
-    <col class='col-name'>
-    <col class='col-avg'>
-    <col class='col-qty'>
-    <col class='col-inv'>
-    <col class='col-utarget'>
-    <col class='col-ltarget'>
-    <col class='col-cur'>
-    <col class='col-fix'>
-    <col class='col-profit'>
-    <col class='col-percent'>
-    <col class='col-act'>
-  </colgroup> id="grid">
+    <col class="col-code">
+    <col class="col-name">
+    <col class="col-avg">
+    <col class="col-qty">
+    <col class="col-inv">
+    <col class="col-utarget">
+    <col class="col-ltarget">
+    <col class="col-cur">
+    <col class="col-fix">
+    <col class="col-profit">
+    <col class="col-percent">
+    <col class="col-act">
+  </colgroup>
   <thead><tr>
     <th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익(원)</th><th>손익(%)</th><th>▲▼/삭제</th>
@@ -147,7 +137,7 @@ function render(){
   const tb=$('#tbody'); tb.innerHTML='';
   rows.forEach((r,i)=>{
     const tr=document.createElement('tr');
-    tr.innerHTML = `
+    tr.innerHTML=`
       <td><input class="code" value="${r.code||''}"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
@@ -379,48 +369,7 @@ function initRowsIfEmpty(){
 function bindTopbar(){
   const ids=['apiBase','apiMode','codeParam','priceKey','multiTpl','singleTpl','pollSec'];
   ids.forEach(id=>{ const el=document.getElementById(id); if(el){ el.addEventListener('change', saveSettings); } });
-  const lt=document.getElementById('liveToggle'); if(lt){ lt.onchange=()=>{ if(lt.checked) startPolling();
-
-/* ====== (선택) 클라우드 동기화: Google Apps Script Web App 사용 ====== */
-/* 아래 URL에 Apps Script 배포 URL을 넣으세요. 공백이면 버튼 눌러도 안내만 합니다. */
-const CLOUD_URL = ""; // 예: https://script.google.com/macros/s/AKfycb.../exec
-const CLOUD_ID  = "stock-dashboard-rows"; // 파일명/키
-
-async function cloudSave(){
-  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. 먼저 Apps Script 웹앱 URL을 넣으세요.'); return; }
-  try{
-    const payload = { id: CLOUD_ID, rows, settings, ts: Date.now() };
-    const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload),
-    });
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    setStatus("클라우드 저장 완료", true);
-    alert('클라우드에 저장되었습니다.');
-  }catch(e){
-    console.error(e);
-    setStatus("클라우드 저장 실패", false);
-    alert('클라우드 저장 실패: '+e.message);
-  }
-}
-async function cloudLoad(){
-  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. 먼저 Apps Script 웹앱 URL을 넣으세요.'); return; }
-  try{
-    const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), { cache: "no-store" });
-    if(!res.ok) throw new Error("HTTP "+res.status);
-    const data = await res.json();
-    if(data.rows){ rows = data.rows; saveRows(); }
-    if(data.settings){ settings = Object.assign(settings, data.settings); saveSettings(); }
-    render();
-    setStatus("클라우드 불러오기 완료", true);
-  }catch(e){
-    console.error(e);
-    setStatus("클라우드 불러오기 실패", false);
-    alert('클라우드 불러오기 실패: '+e.message);
-  }
-}
- else stopPolling(); }; }
+  const lt=document.getElementById('liveToggle'); if(lt){ lt.onchange=()=>{ if(lt.checked) startPolling(); else stopPolling(); }; }
   const add=document.getElementById('addRowBtn'); if(add){ add.onclick=()=>{ rows.push({}); saveRows(); render(); }; }
   const save=document.getElementById('saveBtn'); if(save){ save.onclick=()=>{ saveSettings(); saveRows(); alert('저장되었습니다.'); }; }
   const test=document.getElementById('testBtn'); if(test){ test.onclick=()=>{ const c=rows.map(r=>r.code).filter(Boolean); if(!c.length){alert('코드를 먼저 입력하세요');return;} fetchPricesAuto([c[0]]); }; }
@@ -449,44 +398,32 @@ initRowsIfEmpty();
 render();
 startPolling();
 
-/* ====== (선택) 클라우드 동기화: Google Apps Script Web App 사용 ====== */
-/* 아래 URL에 Apps Script 배포 URL을 넣으세요. 공백이면 버튼 눌러도 안내만 합니다. */
+/* ===== Cloud Sync (Google Apps Script Web App) ===== */
 const CLOUD_URL = ""; // 예: https://script.google.com/macros/s/AKfycb.../exec
-const CLOUD_ID  = "stock-dashboard-rows"; // 파일명/키
+const CLOUD_ID  = "stock-dashboard-rows";
 
 async function cloudSave(){
-  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. 먼저 Apps Script 웹앱 URL을 넣으세요.'); return; }
+  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. Apps Script 웹앱 URL을 넣어주세요.'); return; }
   try{
     const payload = { id: CLOUD_ID, rows, settings, ts: Date.now() };
     const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(payload),
+      method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(payload)
     });
     if(!res.ok) throw new Error("HTTP "+res.status);
     setStatus("클라우드 저장 완료", true);
-    alert('클라우드에 저장되었습니다.');
-  }catch(e){
-    console.error(e);
-    setStatus("클라우드 저장 실패", false);
-    alert('클라우드 저장 실패: '+e.message);
-  }
+    alert("클라우드 저장 완료");
+  }catch(e){ console.error(e); setStatus("클라우드 저장 실패", false); alert("실패: "+e.message); }
 }
 async function cloudLoad(){
-  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. 먼저 Apps Script 웹앱 URL을 넣으세요.'); return; }
+  if(!CLOUD_URL){ alert('CLOUD_URL이 비어있습니다. Apps Script 웹앱 URL을 넣어주세요.'); return; }
   try{
-    const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), { cache: "no-store" });
+    const res = await fetch(CLOUD_URL + "?id="+encodeURIComponent(CLOUD_ID), {cache:"no-store"});
     if(!res.ok) throw new Error("HTTP "+res.status);
     const data = await res.json();
-    if(data.rows){ rows = data.rows; saveRows(); }
-    if(data.settings){ settings = Object.assign(settings, data.settings); saveSettings(); }
-    render();
-    setStatus("클라우드 불러오기 완료", true);
-  }catch(e){
-    console.error(e);
-    setStatus("클라우드 불러오기 실패", false);
-    alert('클라우드 불러오기 실패: '+e.message);
-  }
+    if(data.rows) { rows = data.rows; saveRows(); }
+    if(data.settings) { settings = Object.assign(settings, data.settings); saveSettings(); }
+    render(); setStatus("클라우드 불러오기 완료", true);
+  }catch(e){ console.error(e); setStatus("클라우드 불러오기 실패", false); alert("실패: "+e.message); }
 }
 
 </script>
