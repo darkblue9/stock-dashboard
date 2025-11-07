@@ -575,6 +575,24 @@ document.addEventListener('click',(e)=>{
   </div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function paintQtyCells(){
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const qtyInput = tr.querySelector('.qty');
+    if(!qtyInput) return;
+    const v = Number(String(qtyInput.value).replace(/,/g,'')) || 0;
+    const td = qtyInput.closest('td');
+    td.style.backgroundColor = v>0 ? '#99ffcc' : '';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  paintQtyCells();
+  document.querySelectorAll('#tbody tr .qty').forEach(input=>{
+    input.addEventListener('input', paintQtyCells);
+  });
+});
+</script>
 
 </body>
 </html>
