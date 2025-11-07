@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -33,25 +33,6 @@ td input[readonly]{background:#f9f9f9}
 col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
 col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
 col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
-
-
-/* === Added: sticky top total badge === */
-.top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
-.total-pos{color:green} .total-neg{color:red}
-
-/* === Added: bottom bar === */
-.bottom-bar{display:flex;justify-content:flex-end;gap:8px;padding:6px 0}
-
-/* === Added: small move10 buttons === */
-.mv .up10,.mv .down10{width:auto;height:18px;font-size:10px;padding:0 6px}
-
-/* === Added: delta badges (up=red, down=blue) === */
-.delta-badges{display:inline-flex;gap:4px;margin-left:6px;font-size:11px}
-.delta-badge{border:1px solid #ccc;border-radius:8px;padding:0 6px;line-height:18px}
-.delta-pos{color:#c00;border-color:#c00}
-.delta-neg{color:#1e5aff;border-color:#1e5aff}
-
-/* Keep current/exit cell width as-is (input width already 55%) */
 
 </style>
 </head>
@@ -99,8 +80,6 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
-<div class="bottom-bar"><button id="addBottomBtn">+추가</button></div>
-<div id="topTotal" class="top-total">총 손익: 0</div>
 <div>총 손익: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26%)</div>
 
 <script>
@@ -180,7 +159,7 @@ function render(){
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
-      <td><span class="actions"><button class="chart">차트</button><span class="mv"><button class="up">▲</button><button class="up10">▲10</button><button class="down10">▼10</button><button class="down">▼</button></span><button class="del">삭제</button></span></td>`;
+      <td><span class="actions"><span class="mv"><button class="up">▲</button><button class="down">▼</button></span><button class="del">삭제</button></span></td>`;
     tb.appendChild(tr);
 
     const upd=()=>applyRow(i,tr);
@@ -426,7 +405,7 @@ render();
 startPolling();
 
 /* ===== Cloud Sync (Google Apps Script Web App) ===== */
-const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec"; // 예: https://script.google.com/macros/s/AKfycb.../exec
+const CLOUD_URL = ""; // 예: https://script.google.com/macros/s/AKfycb.../exec
 const CLOUD_ID  = "stock-dashboard-rows";
 
 async function cloudSave(){
@@ -456,9 +435,26 @@ async function cloudLoad(){
   }catch(e){ console.error(e); setStatus("클라우드 불러오기 실패", false); alert("실패: "+e.message); }
 }
 
+</script>
 
-/* ===== Added JS: 5-minute snapshots & delta badges ===== */
-const HIST_PREFIX="hist_v1::"; // per-code key
+<!-- Chart Modal -->
+<div id="chartModal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9999">
+  <div style="background:#fff;border-radius:10px;min-width:320px;max-width:92vw;width:720px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.3)">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eee">
+      <strong id="chartTitle">차트</strong>
+      <button id="chartClose" style="height:24px;padding:0 10px">닫기</button>
+    </div>
+    <div style="padding:10px">
+      <canvas id="histChart" width="680" height="360"></canvas>
+    </div>
+    <div style="padding:8px 12px;border-top:1px solid #eee;text-align:right">
+      <small>최근 24시간, 5분 간격 스냅샷</small>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js">
+/* === Chart + snapshot helpers (minimal, non-invasive) === */
+const HIST_PREFIX="hist_v1::";
 const slotOf=(t)=>Math.floor(t/(5*60*1000));
 const hKey=(code)=>HIST_PREFIX+(String((code||'')).trim());
 function hLoad(code){ try{return JSON.parse(localStorage.getItem(hKey(code))||'[]');}catch(e){return [];} }
@@ -474,132 +470,56 @@ function addSnapIfNeeded(code, price){
   arr.push({t:now,p:price}); if(arr.length>350) arr.splice(0, arr.length-300);
   hSave(code,arr);
 }
-function priceAt(code, msAgo){
-  const target=Date.now()-msAgo, arr=hLoad(code);
-  for(let i=arr.length-1;i>=0;i--){ if(arr[i].t<=target) return arr[i].p; }
-  return null;
+
+// ensure updateProfits drops snapshots
+const __orig_updateProfits = typeof updateProfits==='function' ? updateProfits : null;
+if(__orig_updateProfits){
+  updateProfits = function(){
+    __orig_updateProfits.apply(this, arguments);
+    try{
+      const trs=document.querySelectorAll('#tbody tr');
+      trs.forEach((tr,i)=>{
+        const r = (window.rows||[])[i]||{};
+        if(r.code && (r.cur||0)>0) addSnapIfNeeded(r.code, Number(r.cur));
+      });
+    }catch(e){ console.warn('snapshot fail', e); }
+  };
 }
-function deltaBadgesHTML(code, cur){
-  const p5=priceAt(code,5*60*1000), p60=priceAt(code,60*60*1000);
-  const d5=(p5!=null&&cur)?cur-p5:null, d60=(p60!=null&&cur)?cur-p60:null;
-  const mk=(v,l)=>v==null?'':`<span class="delta-badge ${v>=0?'delta-pos':'delta-neg'}">${l}:${v>0?'+':''}${Math.round(v)}</span>`;
-  return `<span class="delta-badges">${mk(d5,'Δ5m')}${mk(d60,'Δ1h')}</span>`;
-}
 
-/* Hook updateProfits to refresh top total and build delta badges */
-const _orig_updateProfits = updateProfits;
-updateProfits = function(){
-  _orig_updateProfits();
-  // Top total badge sync
-  try{
-    const totEl=document.getElementById('totalProfit');
-    const sticky=document.getElementById('topTotal');
-    if(totEl && sticky){
-      const val=totEl.textContent||'0';
-      sticky.textContent='총 손익: '+val;
-      sticky.classList.remove('total-pos','total-neg');
-      sticky.classList.add((totEl.className||'').includes('profit-pos')?'total-pos':'total-neg');
-    }
-  }catch(e){}
-  // Delta badges & snapshots
-  try{
-    const trs = document.querySelectorAll('#tbody tr');
-    trs.forEach((tr,i)=>{
-      const code = rows[i]?.code||'';
-      const cur = rows[i]?.cur||0;
-      if(code && cur){ addSnapIfNeeded(code, cur); }
-      const curCell = tr.children[7];
-      if(curCell){
-        const old = curCell.querySelector('.delta-badges');
-        if(old) old.remove();
-        curCell.insertAdjacentHTML('beforeend', deltaBadgesHTML(code, cur));
-      }
-    });
-  }catch(e){}
-};
-
-/* Bottom +추가 mirrors top */
-document.getElementById('addBottomBtn').onclick = () => document.getElementById('addRowBtn').click();
-
-/* Wire ▲10/▼10 and chart button after render */
-const _orig_render = render;
-render = function(){
-  _orig_render();
-  document.querySelectorAll('#tbody tr').forEach((tr,i)=>{
-    const r=rows[i]||{};
-    const up10 = tr.querySelector('.up10');
-    const dn10 = tr.querySelector('.down10');
-    if(up10){ up10.onclick=()=>{ const j=Math.max(0,i-10); if(j!==i){ const it=rows.splice(i,1)[0]; rows.splice(j,0,it); saveRows(); render(); } }; }
-    if(dn10){ dn10.onclick=()=>{ const j=Math.min(rows.length-1,i+10); if(j!==i){ const it=rows.splice(i,1)[0]; rows.splice(j,0,it); saveRows(); render(); } }; }
-    const chartBtn = tr.querySelector('.chart');
-    if(chartBtn){ chartBtn.onclick=()=>showChart(r.code, r.name); }
-  });
-};
-
-/* ===== Chart popup ===== */
-let _chart=null;
-function showChart(code,name){
-  const modal=document.getElementById('chartModal');
-  if(!modal) return;
-  document.getElementById('chartTitle').textContent=(name||'')+' ('+(code||'')+')';
-  
-  // Seed one-point history if empty so modal opens.
-  try{
-    if((!data || !data.length) && Array.isArray(rows)){
-      const row = (rows||[]).find(r => String((r.code||'')).trim() === String((code||'')).trim());
-      const price = Number(row && row.cur) || 0;
-      if(price){
-        const seed=[{t:Date.now(), p:price}];
-        localStorage.setItem(hKey(code), JSON.stringify(seed));
-      }
-    }
-  }catch(e){ console.warn('seed failed', e); }
-  const seeded = hLoad(code);
-  const drawData = (seeded && seeded.length) ? seeded : (Array.isArray(data)?data:[]);
-  
-  if(!drawData || !drawData.length){ alert('저장된 히스토리가 아직 없습니다. 현재가로 1점을 찍으려면 한 번 가격을 불러오세요(테스트/실시간).'); }
-  const labels=drawData.map(d=>{const dt=new Date(d.t);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');});
-  const prices=drawData.map(d=>d.p);
-  const ctx=document.getElementById('histChart').getContext('2d');
-  if(_chart){ _chart.destroy(); _chart=null; }
-  _chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:prices,fill:false,tension:0.2}]},
-    options:{plugins:{legend:{display:false}},animation:false,scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}});
-  modal.style.display='flex';
-}
-document.addEventListener('click',(e)=>{
-  if(e.target.id==='chartClose') document.getElementById('chartModal').style.display='none';
-  if(e.target.id==='chartModal' && e.target.classList.contains('modal')) document.getElementById('chartModal').style.display='none';
-});
-
-</script>
-
-<!-- === Chart Modal === -->
-<div id="chartModal" class="modal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:9">
-  <div class="modal-card" style="background:#fff;border-radius:10px;min-width:320px;max-width:92vw;width:720px;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 10px 30px rgba(0,0,0,.3)">
-    <div class="modal-header" style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid #eee">
-      <strong id="chartTitle">차트</strong>
-      <button id="chartClose" style="height:24px;padding:0 10px">닫기</button>
-    </div>
-    <div class="modal-body" style="padding:10px">
-      <canvas id="histChart" width="680" height="360"></canvas>
-    </div>
-    <div class="modal-footer" style="padding:8px 12px;border-top:1px solid #eee;text-align:right">
-      <small>최근 24시간, 5분 간격 스냅샷</small>
-    </div>
-  </div>
-</div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js">
-/* === Chart: robust event delegation (works even if render changes) === */
+// robust event delegation for chart button
 document.addEventListener('click', (ev)=>{
   const btn = ev.target.closest && ev.target.closest('button.chart');
   if(!btn) return;
-  const tr = btn.closest('tr');
-  if(!tr) return;
+  const tr = btn.closest('tr'); if(!tr) return;
   const trs = document.querySelectorAll('#tbody tr');
   const idx = Array.prototype.indexOf.call(trs, tr);
   if(idx < 0 || !Array.isArray(rows)) return;
   const r = rows[idx] || {};
-  try { showChart(r.code, r.name); } catch (e) { console.error(e); alert('차트 표시 중 오류: '+e.message); }
+  showChart(r.code, r.name);
+});
+
+let __chart=null;
+function showChart(code,name){
+  const modal=document.getElementById('chartModal'); if(!modal) return;
+  document.getElementById('chartTitle').textContent=(name||'')+' ('+(code||'')+')';
+  let data = hLoad(code);
+  if((!data || !data.length) && Array.isArray(rows)){
+    const row = (rows||[]).find(r => String((r.code||'')).trim() === String((code||'')).trim());
+    const price = Number(row && row.cur) || 0;
+    if(price){ try{ localStorage.setItem(hKey(code), JSON.stringify([{t:Date.now(),p:price}])); data=hLoad(code);}catch(e){} }
+  }
+  const labels=(data||[]).map(d=>{const dt=new Date(d.t);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');});
+  const prices=(data||[]).map(d=>d.p);
+  const ctx=document.getElementById('histChart').getContext('2d');
+  if(__chart){ __chart.destroy(); __chart=null; }
+  __chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:prices,fill:false,tension:0.2}]},
+    options:{plugins:{legend:{display:false}},animation:false,scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}});
+  modal.style.display='flex';
+}
+
+document.addEventListener('click',(e)=>{
+  if(e.target && e.target.id==='chartClose') document.getElementById('chartModal').style.display='none';
+  if(e.target && e.target.id==='chartModal') document.getElementById('chartModal').style.display='none';
 });
 </script>
 
