@@ -625,7 +625,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
   });
 });
 </script>
+<script>
+// 차트 버튼 전역 위임(캡처 단계): 렌더 전/후 관계없이 항상 동작
+document.addEventListener('click', function (ev) {
+  const btn = ev.target.closest && ev.target.closest('button.chart');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  if (!tr) return;
 
+  // 행에서 직접 값 추출( rows 상태에 의존하지 않음 )
+  const code = (tr.querySelector('.code')?.value || '').trim();
+  const name = (tr.querySelector('.name')?.value || '').trim();
+
+  try {
+    // 기존 showChart를 그대로 사용
+    showChart(code, name);
+  } catch (e) {
+    console.error(e);
+    alert('차트 표시 중 오류: ' + e.message);
+  }
+}, true); // ← 캡처 단계에서 먼저 잡아서 다른 코드가 막아도 동작
+</script>
 
 </body>
 </html>
