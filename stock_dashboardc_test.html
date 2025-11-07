@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -30,9 +30,6 @@ td input[readonly]{background:#f9f9f9}
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
 
 /* ===== Column width tweaks ===== */
-col.col-no{width:44px}
-.qty.filled{background:#99ffcc !important}
-
 col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
 col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
 col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
@@ -55,7 +52,8 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 .delta-neg{color:#1e5aff;border-color:#1e5aff}
 
 /* Keep current/exit cell width as-is (input width already 55%) */
-
+col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
+td.row-no  { text-align:center; color:#666; }
 </style>
 </head>
 <body>
@@ -78,7 +76,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
   <button id="cloudSaveBtn">클라우드 저장</button>
   <button id="cloudLoadBtn">클라우드 불러오기</button>
   <button id="copyTxtBtn">텍스트로 복사</button>
-  <button id="colWidthBtn">컬럼폭(px)</button> <span id="status" class="status">상태: 대기</span>
+  <span id="status" class="status">상태: 대기</span>
 </div>
 
 <table id="grid">
@@ -98,8 +96,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th>
-    <th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
+    <th>No</th><th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익(원)</th><th>손익(%)</th><th>▲▼/삭제</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -170,7 +167,7 @@ function render(){
   rows.forEach((r,i)=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
-      <td class="row-no">${i+1}</td>
+	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
@@ -221,11 +218,7 @@ function applyRow(i,tr,live){
     tr.querySelector('.fix').value=r.fix?fmt(r.fix):'';
   }
   adjustStepForRow(tr);
-  
-  // paint qty once on input
-  (function(){ try{ const qEl = tr.querySelector('.qty'); const qv = Number(String(qEl.value).replace(/,/g,''))||0;
-    qEl.classList.toggle('filled', qv>0); qEl.parentElement.style.backgroundColor = qv>0 ? '#99ffcc' : ''; }catch(e){} })();
-saveRows();
+  saveRows();
   updateProfits();
 }
 
@@ -237,17 +230,7 @@ function updateProfits(){
     tr.querySelector('.inv').value=fmt(r.inv);
     const {won,pct}=calcProfit(r.avg,r.cur,r.fix,r.qty);
     total+=won;
-    
-    // qty cell highlight
-    try{
-      const qtyEl = tr.querySelector('.qty');
-      if(qtyEl){
-        const qv = Number(String(qtyEl.value).replace(/,/g,'')) || 0;
-        qtyEl.classList.toggle('filled', qv>0);
-        qtyEl.parentElement.style.backgroundColor = qv>0 ? '#99ffcc' : '';
-      }
-    }catch(e){}
-const pw=tr.querySelector('.pw'), pp=tr.querySelector('.pp');
+    const pw=tr.querySelector('.pw'), pp=tr.querySelector('.pp');
     if(pw){ pw.textContent=fmt(Math.round(won)); pw.className='pw '+(won>=0?'profit-pos':'profit-neg'); }
     if(pp){ pp.textContent=(isFinite(pct)?pct.toFixed(2):'0.00')+'%'; }
     const utDot=tr.querySelector('.ut-dot'), ltDot=tr.querySelector('.lt-dot');
@@ -398,7 +381,7 @@ function fallbackCopy(text){
 function ensureTopbar(){
   if(!document.getElementById('status')){
     const d=document.createElement('div');
-    d.innerHTML='<button id="colWidthBtn">컬럼폭(px)</button> <span id="status" class="status">상태: 대기</span>';
+    d.innerHTML='<span id="status" class="status">상태: 대기</span>';
     document.body.insertBefore(d, document.body.firstChild);
   }
 }
@@ -561,17 +544,46 @@ let _chart=null;
 function showChart(code,name){
   const modal=document.getElementById('chartModal');
   if(!modal) return;
+
   document.getElementById('chartTitle').textContent=(name||'')+' ('+(code||'')+')';
-  const data=hLoad(code);
-  if(!data || !data.length){ alert('저장된 히스토리가 아직 없습니다. 5분 간격으로 자동 저장됩니다.'); return; }
-  const labels=data.map(d=>{const dt=new Date(d.t);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');});
-  const prices=data.map(d=>d.p);
-  const ctx=document.getElementById('histChart').getContext('2d');
+
+  // 12시간 범위만 사용
+  const twelveAgo = Date.now() - 12*60*60*1000;
+  let data = (hLoad(code) || []).filter(d => d && d.t >= twelveAgo);
+
+  // 히스토리가 없으면 현재가로 1점 시드 후에도 모달은 뜨게
+  if(!data.length && Array.isArray(rows)){
+    const row = (rows||[]).find(r => String((r.code||'')).trim() === String((code||'')).trim());
+    const price = Number(row && row.cur) || 0;
+    if(price){
+      data = [{ t: Date.now(), p: price }];
+      try{ localStorage.setItem(hKey(code), JSON.stringify(data)); }catch(e){}
+    }
+  }
+
+  // 차트 그림 (비어 있어도 모달은 열림)
+  const labels = (data||[]).map(d=>{
+    const dt=new Date(d.t);
+    return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+  });
+  const prices = (data||[]).map(d=>d.p);
+
+  const ctx = document.getElementById('histChart').getContext('2d');
   if(_chart){ _chart.destroy(); _chart=null; }
-  _chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:prices,fill:false,tension:0.2}]},
-    options:{plugins:{legend:{display:false}},animation:false,scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}});
+  _chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ data:prices, fill:false, tension:0.2 }] },
+    options:{ plugins:{ legend:{ display:false } }, animation:false,
+      scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:false } } }
+  });
+
   modal.style.display='flex';
-}
+
+  // 여전히 비었으면 안내만
+  if(!data.length){
+    alert('최근 12시간 히스토리가 없습니다. (현재가를 한 번 불러오면 5분 간격으로 쌓입니다)');
+  }
+ }
 document.addEventListener('click',(e)=>{
   if(e.target.id==='chartClose') document.getElementById('chartModal').style.display='none';
   if(e.target.id==='chartModal' && e.target.classList.contains('modal')) document.getElementById('chartModal').style.display='none';
@@ -594,20 +606,24 @@ document.addEventListener('click',(e)=>{
     </div>
   </div>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/chart.js">
-// Report column widths in pixels (current viewport)
-(function(){
-  const btn = document.getElementById('colWidthBtn');
-  if(!btn) return;
-  btn.onclick = ()=>{
-    const ths = document.querySelectorAll('#grid thead th');
-    const names = Array.from(ths).map(th=>th.textContent.trim());
-    const w = Array.from(ths).map(th=>Math.round(th.getBoundingClientRect().width));
-    const lines = names.map((n,i)=>`${n}: ${w[i]}px`);
-    console.log('[컬럼폭]', lines.join(' | '));
-    alert('컬럼폭(px)\n\n'+lines.join('\n'));
-  };
-})();
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+function paintQtyCells(){
+  document.querySelectorAll('#tbody tr').forEach(tr=>{
+    const qtyInput = tr.querySelector('.qty');
+    if(!qtyInput) return;
+    const v = Number(String(qtyInput.value).replace(/,/g,'')) || 0;
+    const td = qtyInput.closest('td');
+    td.style.backgroundColor = v>0 ? '#99ffcc' : '';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', ()=>{
+  paintQtyCells();
+  document.querySelectorAll('#tbody tr .qty').forEach(input=>{
+    input.addEventListener('input', paintQtyCells);
+  });
+});
 </script>
 
 </body>
