@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -52,8 +52,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 .delta-neg{color:#1e5aff;border-color:#1e5aff}
 
 /* Keep current/exit cell width as-is (input width already 55%) */
-col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
-td.row-no  { text-align:center; color:#666; }
+
 </style>
 </head>
 <body>
@@ -81,7 +80,6 @@ td.row-no  { text-align:center; color:#666; }
 
 <table id="grid">
   <colgroup>
-    <col class="col-no">
     <col class="col-code">
     <col class="col-name">
     <col class="col-avg">
@@ -96,7 +94,7 @@ td.row-no  { text-align:center; color:#666; }
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th><th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
+    <th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익(원)</th><th>손익(%)</th><th>▲▼/삭제</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -167,7 +165,6 @@ function render(){
   rows.forEach((r,i)=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
-	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
