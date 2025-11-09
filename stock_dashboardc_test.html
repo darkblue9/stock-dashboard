@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -76,6 +76,7 @@ td.row-no  { text-align:center; color:#666; }
   <button id="cloudSaveBtn">클라우드 저장</button>
   <button id="cloudLoadBtn">클라우드 불러오기</button>
   <button id="copyTxtBtn">텍스트로 복사</button>
+  <button id="btnSortEmptyQty">정렬(주수없음)</button>
   <span id="status" class="status">상태: 대기</span>
 </div>
 
@@ -645,6 +646,25 @@ document.addEventListener('click', function (ev) {
     alert('차트 표시 중 오류: ' + e.message);
   }
 }, true); // ← 캡처 단계에서 먼저 잡아서 다른 코드가 막아도 동작
+
+document.getElementById('btnSortEmptyQty').addEventListener('click', () => {
+  // 주수 컬럼 기준 분리
+  const filled = rows.filter(r => r.qty && Number(r.qty) > 0);
+  const empty = rows.filter(r => !r.qty || Number(r.qty) <= 0);
+
+  // 코드 기준 오름차순 정렬 (빈 항목만)
+  empty.sort((a, b) => {
+    const ca = (a.code || '').trim();
+    const cb = (b.code || '').trim();
+    return ca.localeCompare(cb);
+  });
+
+  // 합치고 렌더링
+  rows = [...filled, ...empty];
+  render();
+});
+
+
 </script>
 
 </body>
