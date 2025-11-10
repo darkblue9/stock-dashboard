@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>8주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -609,15 +609,33 @@ document.addEventListener('click',(e)=>{
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-function paintQtyCells(){
-  document.querySelectorAll('#tbody tr').forEach(tr=>{
-    const qtyInput = tr.querySelector('.qty');
-    if(!qtyInput) return;
-    const v = Number(String(qtyInput.value).replace(/,/g,'')) || 0;
-    const td = qtyInput.closest('td');
-    td.style.backgroundColor = v>0 ? '#99ffcc' : '';
-  });
+// ===== 주수 셀 페인팅: 클래스(.filled)와 TD 배경을 함께 토글 =====
+function paintQtyCell(el){
+  if(!el) return;
+  const v = Number(String(el.value).replace(/,/g,'')) || 0;
+  // 입력창 배경 (기존 .qty.filled 스타일도 고려)
+  el.classList.toggle('filled', v > 0);
+  // 셀(전체 td) 배경
+  const td = el.closest('td');
+  if(td) td.style.backgroundColor = v > 0 ? '#99ffcc' : '';
 }
+
+function paintAllQty(){
+  document.querySelectorAll('#tbody .qty').forEach(paintQtyCell);
+}
+
+// 1) 최초 로드 때 한 번
+document.addEventListener('DOMContentLoaded', paintAllQty);
+
+// 2) 주수 입력이 바뀔 때마다 (이벤트 위임으로 동적 행에도 자동 적용)
+document.addEventListener('input', (e)=>{
+  const el = e.target && e.target.closest('.qty');
+  if(el) paintQtyCell(el);
+});
+
+// 3) (선택) 네가 정렬/렌더 후에 별도 호출하고 싶다면 이걸 불러줘
+window.paintAllQty = paintAllQty;
+
 
 document.addEventListener('DOMContentLoaded', ()=>{
   paintQtyCells();
