@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -715,6 +715,99 @@ if (tbody) {
 document.addEventListener('DOMContentLoaded', paintAllQty);
 
 
+</script>
+
+<style>
+/* 기존 Δ배지 숨김(클래스명이 다르면 아래 줄만 유지하고 나머지는 놔둬도 됨) */
+.delta, .delta-badge, .delta-wrap { display:none !important; }
+
+/* 현재가 아래 점 5개 */
+.trend-dots{display:flex;gap:6px;justify-content:center;margin-top:4px}
+.trend-dot{width:8px;height:8px;border-radius:50%;background:#bfbfbf;opacity:.35}
+.trend-dot.up{background:#e53935;animation:blink 1s infinite}
+.trend-dot.down{background:#1e88e5;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+</style>
+
+<script>
+// hLoad(code): 로컬 스냅샷 로더(이미 파일에 있음). 여기선 그대로 사용.
+
+function ensureDots(tr){
+  const curTd = tr.querySelector('.cur')?.closest('td');
+  if(!curTd) return null;
+  let box = curTd.querySelector('.trend-dots');
+  if(!box){
+    box = document.createElement('div');
+    box.className = 'trend-dots';
+    curTd.appendChild(box);
+  }
+  return box;
+}
+
+function updateTrendDotsForRow(tr){
+  const code = (tr.querySelector('.code')?.value || '').trim();
+  const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
+  const box  = ensureDots(tr);
+  if(!box) return;
+
+  const hist = hLoad(code) || [];
+  // 최근 스냅샷 5개(1칸 전 ~ 5칸 전): 최신값부터 거꾸로 1..5
+  const last5 = [];
+  for(let k=1;k<=5;k++){
+    const idx = hist.length - k;
+    last5.push(idx>=0 ? hist[idx] : null);
+  }
+
+  box.innerHTML = ''; // 초기화
+  last5.forEach(h=>{
+    const dot = document.createElement('span');
+    dot.className = 'trend-dot';
+    if(h && cur){
+      if(cur > h.p) dot.classList.add('up');
+      else if(cur < h.p) dot.classList.add('down');
+      else dot.style.opacity = '0.6'; // 같으면 회색 고정
+    }
+    box.appendChild(dot);
+  });
+}
+
+function refreshTrendDotsAll(){
+  document.querySelectorAll('#tbody tr').forEach(updateTrendDotsForRow);
+}
+
+// 입력으로 현재가 변경 시 즉시 반영
+document.addEventListener('input', (e)=>{
+  const el = e.target && e.target.closest('.cur');
+  if(el){
+    const tr = el.closest('tr');
+    if(tr) updateTrendDotsForRow(tr);
+  }
+});
+
+// 렌더가 끝날 때마다 반영(정렬/추가/삭제 포함)
+if (typeof render === 'function') {
+  const __origRender = render;
+  render = function(...args){
+    const r = __origRender.apply(this, args);
+    queueMicrotask(refreshTrendDotsAll);
+    return r;
+  };
+}
+
+// tbody 구조 변경 감지(방어용)
+const tbody = document.querySelector('#tbody');
+if (tbody) {
+  new MutationObserver((list)=>{
+    if (list.some(m=>m.type==='childList')) refreshTrendDotsAll();
+  }).observe(tbody, {childList:true});
+}
+
+// 초기 1회
+document.addEventListener('DOMContentLoaded', refreshTrendDotsAll);
+
+// (선택) 가격 스냅샷 저장 후에도 갱신하고 싶으면,
+// 너가 쓰는 addSnapIfNeeded(...) 호출 뒤에 아래 한 줄 넣으면 됨:
+//   refreshTrendDotsAll();
 </script>
 
 </body>
