@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -54,19 +54,17 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 /* Keep current/exit cell width as-is (input width already 55%) */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
-/* 현재가 셀 안에 점 5개 붙이기 위한 자리 만들기 */
-td.cur-cell {
-  position: relative;
-  padding-bottom: 16px;  /* ← 점 들어올 자리 */
-}
 
-td.cur-cell .trend-dots {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 1px;
-}
-.trend-dot { width:6px; height:6px; gap:4px; }
+/* 기존 Δ배지 숨김 */
+.delta, .delta-badge, .delta-wrap { display: none !important; }
+
+/* 현재가 셀 하단 공간 확보 + 점 5개 위치 */
+td.cur-cell { position: relative; padding-bottom: 16px; }
+td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50%); bottom:1px; display:flex; gap:6px; }
+.trend-dot { width:8px; height:8px; border-radius:50%; background:#bfbfbf; opacity:.35 }
+.trend-dot.up   { background:#e53935; animation:blink 1s infinite; }
+.trend-dot.down { background:#1e88e5; animation:blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
 
 </style>
 </head>
@@ -731,97 +729,100 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
 
 </script>
 
-<style>
-/* 기존 Δ배지 숨김(클래스명이 다르면 아래 줄만 유지하고 나머지는 놔둬도 됨) */
-.delta, .delta-badge, .delta-wrap { display:none !important; }
-
-/* 현재가 아래 점 5개 */
-.trend-dots{display:flex;gap:6px;justify-content:center;margin-top:4px}
-.trend-dot{width:8px;height:8px;border-radius:50%;background:#bfbfbf;opacity:.35}
-.trend-dot.up{background:#e53935;animation:blink 1s infinite}
-.trend-dot.down{background:#1e88e5;animation:blink 1s infinite}
-@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
-</style>
-
 <script>
-// hLoad(code): 로컬 스냅샷 로더(이미 파일에 있음). 여기선 그대로 사용.
-
-function ensureDots(tr){
-  const curTd = tr.querySelector('.cur')?.closest('td');
-  if(!curTd) return null;
-  let box = curTd.querySelector('.trend-dots');
-  if(!box){
-    box = document.createElement('div');
-    box.className = 'trend-dots';
-    curTd.appendChild(box);
+/* ===== 주수 색칠(호환 가드) ===== */
+(function(){
+  // 기존에 paintAllQty만 있고 paintQtyCells를 참조하는 곳이 있으면 호환용으로 매핑
+  if (!window.paintQtyCells && typeof window.paintAllQty === 'function') {
+    window.paintQtyCells = window.paintAllQty;
   }
-  return box;
-}
+})();
 
-function updateTrendDotsForRow(tr){
-  const code = (tr.querySelector('.code')?.value || '').trim();
-  const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
-  const box  = ensureDots(tr);
-  if(!box) return;
+/* ===== 현재가 하단 '최근 5 스냅샷 비교' 점 5개 ===== */
+(function(){
+  // 안전 가드: 중복 주입 방지
+  if (window.__trendDotsInstalled) return;
+  window.__trendDotsInstalled = true;
 
-  const hist = hLoad(code) || [];
-  // 최근 스냅샷 5개(1칸 전 ~ 5칸 전): 최신값부터 거꾸로 1..5
-  const last5 = [];
-  for(let k=1;k<=5;k++){
-    const idx = hist.length - k;
-    last5.push(idx>=0 ? hist[idx] : null);
-  }
-
-  box.innerHTML = ''; // 초기화
-  last5.forEach(h=>{
-    const dot = document.createElement('span');
-    dot.className = 'trend-dot';
-    if(h && cur){
-      if(cur > h.p) dot.classList.add('up');
-      else if(cur < h.p) dot.classList.add('down');
-      else dot.style.opacity = '0.6'; // 같으면 회색 고정
+  function ensureDotsBox(tr){
+    const curTd = tr.querySelector('.cur')?.closest('td');
+    if (!curTd) return null;
+    let box = curTd.querySelector('.trend-dots');
+    if (!box){
+      box = document.createElement('div');
+      box.className = 'trend-dots';
+      curTd.appendChild(box);
     }
-    box.appendChild(dot);
-  });
-}
-
-function refreshTrendDotsAll(){
-  document.querySelectorAll('#tbody tr').forEach(updateTrendDotsForRow);
-}
-
-// 입력으로 현재가 변경 시 즉시 반영
-document.addEventListener('input', (e)=>{
-  const el = e.target && e.target.closest('.cur');
-  if(el){
-    const tr = el.closest('tr');
-    if(tr) updateTrendDotsForRow(tr);
+    return box;
   }
-});
 
-// 렌더가 끝날 때마다 반영(정렬/추가/삭제 포함)
-if (typeof render === 'function') {
-  const __origRender = render;
-  render = function(...args){
-    const r = __origRender.apply(this, args);
-    queueMicrotask(refreshTrendDotsAll);
-    return r;
-  };
-}
+  function updateTrendDotsForRow(tr){
+    const code = (tr.querySelector('.code')?.value || '').trim();
+    const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
+    const box  = ensureDotsBox(tr);
+    if (!box) return;
 
-// tbody 구조 변경 감지(방어용)
-const tbody = document.querySelector('#tbody');
-if (tbody) {
-  new MutationObserver((list)=>{
-    if (list.some(m=>m.type==='childList')) refreshTrendDotsAll();
-  }).observe(tbody, {childList:true});
-}
+    const hist = (typeof hLoad === 'function') ? (hLoad(code) || []) : [];
+    // 직전 1칸 ~ 5칸 전 스냅샷
+    const last5 = [];
+    for (let k=1;k<=5;k++){
+      const idx = hist.length - k;
+      last5.push(idx>=0 ? hist[idx] : null);
+    }
 
-// 초기 1회
-document.addEventListener('DOMContentLoaded', refreshTrendDotsAll);
+    box.innerHTML = '';
+    last5.forEach(h=>{
+      const dot = document.createElement('span');
+      dot.className = 'trend-dot';
+      if (h && cur){
+        if (cur > h.p) dot.classList.add('up');
+        else if (cur < h.p) dot.classList.add('down');
+        else dot.style.opacity = '0.6'; // 같으면 회색 고정
+      }
+      box.appendChild(dot);
+    });
+  }
 
-// (선택) 가격 스냅샷 저장 후에도 갱신하고 싶으면,
-// 너가 쓰는 addSnapIfNeeded(...) 호출 뒤에 아래 한 줄 넣으면 됨:
-//   refreshTrendDotsAll();
+  function refreshTrendDotsAll(){
+    document.querySelectorAll('#tbody tr').forEach(updateTrendDotsForRow);
+  }
+
+  // 입력으로 현재가 변경 시 즉시 반영 (위임)
+  document.addEventListener('input', (e)=>{
+    const el = e.target && e.target.closest('.cur');
+    if (el){
+      const tr = el.closest('tr');
+      if (tr) updateTrendDotsForRow(tr);
+    }
+  });
+
+  // 렌더 끝나면 자동 반영 (중복 래핑 방지)
+  if (typeof render === 'function' && !render.__wrappedForTrendDots){
+    const __origRender = render;
+    render = function(...args){
+      const r = __origRender.apply(this, args);
+      queueMicrotask(refreshTrendDotsAll);
+      return r;
+    };
+    render.__wrappedForTrendDots = true;
+  }
+
+  // tbody 변경 감지 (이름 충돌 방지: tbodyTrend)
+  const tbodyTrend = document.querySelector('#tbody');
+  if (tbodyTrend){
+    const moTrend = new MutationObserver((list)=>{
+      if (list.some(m => m.type === 'childList')) refreshTrendDotsAll();
+    });
+    moTrend.observe(tbodyTrend, { childList: true });
+  }
+
+  // 초기 1회
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', refreshTrendDotsAll);
+  } else {
+    refreshTrendDotsAll();
+  }
+})();
 </script>
 
 </body>
