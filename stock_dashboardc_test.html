@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -54,6 +54,20 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 /* Keep current/exit cell width as-is (input width already 55%) */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
+/* 현재가 셀 안에 점 5개 붙이기 위한 자리 만들기 */
+td.cur-cell {
+  position: relative;
+  padding-bottom: 16px;  /* ← 점 들어올 자리 */
+}
+
+td.cur-cell .trend-dots {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 1px;
+}
+.trend-dot { width:6px; height:6px; gap:4px; }
+
 </style>
 </head>
 <body>
@@ -180,7 +194,7 @@ function render(){
       <td><div class="target-cell"><span class="dot lt-dot"></span>
         <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가">
       </div></td>
-      <td><input class="cur" value="${r.cur?fmt(r.cur):''}"></td>
+      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}"></td>
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
