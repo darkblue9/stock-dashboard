@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -652,11 +652,11 @@ document.getElementById('btnSortEmptyQty').addEventListener('click', () => {
   const filled = rows.filter(r => r.qty && Number(r.qty) > 0);
   const empty = rows.filter(r => !r.qty || Number(r.qty) <= 0);
 
-  // 코드 기준 오름차순 정렬 (빈 항목만)
+  // 종목 이름 기준 오름차순 정렬 (빈 항목만)
   empty.sort((a, b) => {
-    const ca = (a.code || '').trim();
-    const cb = (b.code || '').trim();
-    return ca.localeCompare(cb);
+    const na = (a.name || '').trim();
+    const nb = (b.name || '').trim();
+    return na.localeCompare(nb, 'ko', { sensitivity: 'base' });
   });
 
   // 합치고 렌더링
