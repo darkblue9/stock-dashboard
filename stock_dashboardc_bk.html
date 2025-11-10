@@ -52,7 +52,8 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 .delta-neg{color:#1e5aff;border-color:#1e5aff}
 
 /* Keep current/exit cell width as-is (input width already 55%) */
-
+col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
+td.row-no  { text-align:center; color:#666; }
 </style>
 </head>
 <body>
@@ -80,6 +81,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 
 <table id="grid">
   <colgroup>
+    <col class="col-no">
     <col class="col-code">
     <col class="col-name">
     <col class="col-avg">
@@ -94,7 +96,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
+    <th>No</th><th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익(원)</th><th>손익(%)</th><th>▲▼/삭제</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -165,6 +167,7 @@ function render(){
   rows.forEach((r,i)=>{
     const tr=document.createElement('tr');
     tr.innerHTML=`
+	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
@@ -541,17 +544,46 @@ let _chart=null;
 function showChart(code,name){
   const modal=document.getElementById('chartModal');
   if(!modal) return;
+
   document.getElementById('chartTitle').textContent=(name||'')+' ('+(code||'')+')';
-  const data=hLoad(code);
-  if(!data || !data.length){ alert('저장된 히스토리가 아직 없습니다. 5분 간격으로 자동 저장됩니다.'); return; }
-  const labels=data.map(d=>{const dt=new Date(d.t);return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');});
-  const prices=data.map(d=>d.p);
-  const ctx=document.getElementById('histChart').getContext('2d');
+
+  // 12시간 범위만 사용
+  const twelveAgo = Date.now() - 12*60*60*1000;
+  let data = (hLoad(code) || []).filter(d => d && d.t >= twelveAgo);
+
+  // 히스토리가 없으면 현재가로 1점 시드 후에도 모달은 뜨게
+  if(!data.length && Array.isArray(rows)){
+    const row = (rows||[]).find(r => String((r.code||'')).trim() === String((code||'')).trim());
+    const price = Number(row && row.cur) || 0;
+    if(price){
+      data = [{ t: Date.now(), p: price }];
+      try{ localStorage.setItem(hKey(code), JSON.stringify(data)); }catch(e){}
+    }
+  }
+
+  // 차트 그림 (비어 있어도 모달은 열림)
+  const labels = (data||[]).map(d=>{
+    const dt=new Date(d.t);
+    return String(dt.getHours()).padStart(2,'0')+':'+String(dt.getMinutes()).padStart(2,'0');
+  });
+  const prices = (data||[]).map(d=>d.p);
+
+  const ctx = document.getElementById('histChart').getContext('2d');
   if(_chart){ _chart.destroy(); _chart=null; }
-  _chart=new Chart(ctx,{type:'line',data:{labels,datasets:[{data:prices,fill:false,tension:0.2}]},
-    options:{plugins:{legend:{display:false}},animation:false,scales:{x:{grid:{display:false}},y:{beginAtZero:false}}}});
+  _chart = new Chart(ctx, {
+    type:'line',
+    data:{ labels, datasets:[{ data:prices, fill:false, tension:0.2 }] },
+    options:{ plugins:{ legend:{ display:false } }, animation:false,
+      scales:{ x:{ grid:{ display:false } }, y:{ beginAtZero:false } } }
+  });
+
   modal.style.display='flex';
-}
+
+  // 여전히 비었으면 안내만
+  if(!data.length){
+    alert('최근 12시간 히스토리가 없습니다. (현재가를 한 번 불러오면 5분 간격으로 쌓입니다)');
+  }
+ }
 document.addEventListener('click',(e)=>{
   if(e.target.id==='chartClose') document.getElementById('chartModal').style.display='none';
   if(e.target.id==='chartModal' && e.target.classList.contains('modal')) document.getElementById('chartModal').style.display='none';
@@ -592,6 +624,27 @@ document.addEventListener('DOMContentLoaded', ()=>{
     input.addEventListener('input', paintQtyCells);
   });
 });
+</script>
+<script>
+// 차트 버튼 전역 위임(캡처 단계): 렌더 전/후 관계없이 항상 동작
+document.addEventListener('click', function (ev) {
+  const btn = ev.target.closest && ev.target.closest('button.chart');
+  if (!btn) return;
+  const tr = btn.closest('tr');
+  if (!tr) return;
+
+  // 행에서 직접 값 추출( rows 상태에 의존하지 않음 )
+  const code = (tr.querySelector('.code')?.value || '').trim();
+  const name = (tr.querySelector('.name')?.value || '').trim();
+
+  try {
+    // 기존 showChart를 그대로 사용
+    showChart(code, name);
+  } catch (e) {
+    console.error(e);
+    alert('차트 표시 중 오류: ' + e.message);
+  }
+}, true); // ← 캡처 단계에서 먼저 잡아서 다른 코드가 막아도 동작
 </script>
 
 </body>
