@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -65,6 +65,13 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 .trend-dot.up   { background:#e53935; animation:blink 1s infinite; }
 .trend-dot.down { background:#1e88e5; animation:blink 1s infinite; }
 @keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+/* 크기·속도·투명도: 변동폭 레벨별 */
+.trend-dot.small  { transform: scale(0.9);  opacity:.45; animation-duration:1.3s; }
+.trend-dot.medium { transform: scale(1.0);  opacity:.75; animation-duration:1.0s; }
+.trend-dot.big    { transform: scale(1.25); opacity:1.0;  animation-duration:0.7s; }
+
+/* 동일(변화 거의 0)일 때는 회색 고정점 */
+.trend-dot.flat { background:#bfbfbf !important; opacity:.6 !important; animation:none !important; }
 
 </style>
 </head>
@@ -757,31 +764,54 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
   }
 
   function updateTrendDotsForRow(tr){
-    const code = (tr.querySelector('.code')?.value || '').trim();
-    const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
-    const box  = ensureDotsBox(tr);
-    if (!box) return;
+  const code = (tr.querySelector('.code')?.value || '').trim();
+  const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
+  const box  = ensureDotsBox(tr);
+  if (!box) return;
 
-    const hist = (typeof hLoad === 'function') ? (hLoad(code) || []) : [];
-    // 직전 1칸 ~ 5칸 전 스냅샷
-    const last5 = [];
-    for (let k=1;k<=5;k++){
-      const idx = hist.length - k;
-      last5.push(idx>=0 ? hist[idx] : null);
+  const hist = (typeof hLoad === 'function') ? (hLoad(code) || []) : [];
+
+  // 직전 1칸 ~ 5칸 전 스냅샷
+  const last5 = [];
+  for (let k=1;k<=5;k++){
+    const idx = hist.length - k;
+    last5.push(idx>=0 ? hist[idx] : null);
+  }
+
+  // 레벨 임계치(변동률 %). 필요하면 조절: 0.2% / 0.6% / 나머지
+  const T_SMALL  = 0.2;
+  const T_MEDIUM = 0.6;
+
+  box.innerHTML = '';
+  last5.forEach((h, nIdx)=>{
+    const dot = document.createElement('span');
+    dot.className = 'trend-dot';
+    let title = '스냅샷 없음';
+
+    if (h && cur > 0 && h.p > 0) {
+      const diff = cur - h.p;
+      const pct  = Math.abs(diff) / h.p * 100; // 변동률(%)
+
+      // 크기/속도 등급 부여
+      if (pct < T_SMALL)      dot.classList.add('small');
+      else if (pct < T_MEDIUM)dot.classList.add('medium');
+      else                    dot.classList.add('big');
+
+      if (diff > 0) dot.classList.add('up');
+      else if (diff < 0) dot.classList.add('down');
+      else dot.classList.add('flat');
+
+      // 툴팁(마우스오버)
+      const agoMin = (nIdx+1)*5; // 5,10,15,20,25분 전
+      title = `${agoMin}분 전: ${h.p.toLocaleString()} → 현재 ${cur.toLocaleString()}  (${diff>0?'+':''}${(diff).toLocaleString()} / ${(diff/h.p*100).toFixed(2)}%)`;
+    } else {
+      dot.classList.add('flat');
     }
 
-    box.innerHTML = '';
-    last5.forEach(h=>{
-      const dot = document.createElement('span');
-      dot.className = 'trend-dot';
-      if (h && cur){
-        if (cur > h.p) dot.classList.add('up');
-        else if (cur < h.p) dot.classList.add('down');
-        else dot.style.opacity = '0.6'; // 같으면 회색 고정
-      }
-      box.appendChild(dot);
-    });
-  }
+    dot.title = title;
+    box.appendChild(dot);
+  });
+}
 
   function refreshTrendDotsAll(){
     document.querySelectorAll('#tbody tr').forEach(updateTrendDotsForRow);
