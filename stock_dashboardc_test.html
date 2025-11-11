@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -54,7 +54,7 @@ td input[readonly]{background:#f9f9f9}
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
 col.col-fix { width: 70px; }     /* 매도가 컬럼폭, 가로폭 고정 */
-td.col-fix input.fix { width: 35px; }
+th.col-fix input.fix { width: 35px; } 
 
 /* 기존 Δ배지 숨김 */
 .delta, .delta-badge, .delta-wrap { display: none !important; }
@@ -94,6 +94,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 
 /* 4) 셀 자체 패딩도 더 타이트하게 (원하면 유지) */
 #grid td { padding: 2px 3px; }
+	
 </style>
 </head>
 <body>
