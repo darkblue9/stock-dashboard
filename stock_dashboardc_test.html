@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -33,7 +33,12 @@ td input[readonly]{background:#f9f9f9}
 col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
 col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
 col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
+/* 셀 내부 여백 줄이기 */
+td {  padding: 2px 4px;   /* 위아래 2px, 좌우 4px */ }
 
+/* input 박스와 셀 가장자리 간격 줄이기 */
+td input {  margin: 0;  padding: 2px 3px;   /* 내부 패딩도 조금 줄이기 */  box-sizing: border-box;  /* 폭 계산 안정화 */
+}
 
 /* === Added: sticky top total badge === */
 .top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
