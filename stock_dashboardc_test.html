@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -54,7 +54,7 @@ td input[readonly]{background:#f9f9f9}
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
 col.col-fix { width: 70px; }     /* 매도가 컬럼폭, 가로폭 고정 */
-th.col-fix input.fix { width: 35px; } 
+/* th.col-fix input.fix { width: 35px; }  */
 
 /* 기존 Δ배지 숨김 */
 .delta, .delta-badge, .delta-wrap { display: none !important; }
@@ -223,7 +223,8 @@ function render(){
         <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가">
       </div></td>
       <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}"></td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td>
+      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 50px;"></td>
+	  <!-- <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td> -->
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
       <td><span class="actions"><button class="chart">차트</button><span class="mv"><button class="up">▲</button><button class="up10">▲10</button><button class="down10">▼10</button><button class="down">▼</button></span><button class="del">삭제</button></span></td>`;
