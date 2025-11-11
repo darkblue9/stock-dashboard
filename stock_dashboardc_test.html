@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -30,9 +30,9 @@ td input[readonly]{background:#f9f9f9}
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
 
 /* ===== Column width tweaks ===== */
-col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
-col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
-col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
+/* col.col-qty{width:40px}              주수: 절반 수준(고정폭) */
+/* col.col-profit{width:6.8%}           손익(원): 대략 15% 축소 (8% -> 6.8%) */
+/* col.col-percent{width:5.1%}          손익(%): 15% 축소 (6% -> 5.1%) */
 
 /* === Added: sticky top total badge === */
 .top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
@@ -54,7 +54,7 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
 col.col-fix { width: 70px; }     /* 매도가 컬럼폭, 가로폭 고정 */
-td.col-fix input.fix { width: 55px; }
+td.col-fix input.fix { width: 35px; }
 
 /* 기존 Δ배지 숨김 */
 .delta, .delta-badge, .delta-wrap { display: none !important; }
