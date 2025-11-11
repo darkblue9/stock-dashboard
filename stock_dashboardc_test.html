@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>8주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>9주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -80,6 +80,26 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 /* 동일(변화 거의 0)일 때는 회색 고정점 */
 .trend-dot.flat { background:#bfbfbf !important; opacity:.6 !important; animation:none !important; }
 
+	/* 1) 셀 안 input을 셀 폭에 맞게 (전역 55% 규칙 덮어쓰기) */
+#grid td > input {
+  width: 100%;
+  padding: 2px 3px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* 2) 상/하목표 래퍼의 여백 축소 (점·input 사이 간격) */
+#grid .target-cell { gap: 2px; }
+#grid .target-cell input { width: 80px; }   /* 필요하면 72~90px로 조절 */
+
+/* 3) 매도가 컬럼만 별도 폭 지정 (10번째 컬럼) */
+#grid td:nth-child(10) input.fix {
+  width: 86px;       /* 지금 83px에서 +3px */
+  box-sizing: border-box;
+}
+
+/* 4) 셀 자체 패딩도 더 타이트하게 (원하면 유지) */
+#grid td { padding: 2px 3px; }
 </style>
 </head>
 <body>
