@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -96,6 +96,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
   <button id="cloudLoadBtn">클라우드 불러오기</button>
   <button id="copyTxtBtn">텍스트로 복사</button>
   <button id="btnSortEmptyQty">정렬(주수없음)</button>
+  <button id="btnSetTargets">목표가 세팅</button>
   <span id="status" class="status">상태: 대기</span>
 </div>
 
@@ -852,6 +853,63 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
   } else {
     refreshTrendDotsAll();
   }
+})();
+</script>
+
+<script>
+/* 목표가 세팅: 현재가 기준 상/하목표 일괄 세팅
+   - 현재가 ≥ 100,000 → +4,000 / -4,000
+   - 현재가 < 100,000  → +400  / -400
+*/
+(function () {
+  const btn = document.getElementById('btnSetTargets');
+  if (!btn) return;
+
+  const parseNum = s => Number(String(s).replace(/[^\d.-]/g, '')) || 0;
+
+  // input 값 세팅 + 'input' 이벤트 강제 발생(내부 rows 동기화)
+  function setInputAndCommit(input, valueNumber) {
+    if (!input) return false;
+    input.value = String(valueNumber);              // 숫자 형태로 넣고
+    input.dispatchEvent(new Event('input', { bubbles: true }));  // rows 갱신 트리거
+    return true;
+  }
+
+  btn.addEventListener('click', () => {
+    const trs = document.querySelectorAll('#tbody tr');
+    let changed = 0;
+
+    trs.forEach(tr => {
+      const curInput = tr.querySelector('.cur');
+      if (!curInput) return;
+
+      const cur = parseNum(curInput.value);
+      if (!cur) return;
+
+      const delta = (cur >= 100000) ? 4000 : 400;
+
+      // 현재가 td → 왼쪽(하목표) → 그 왼쪽(상목표)
+      const tdCur  = curInput.closest('td');
+      const tdLow  = tdCur && tdCur.previousElementSibling;
+      const tdHigh = tdLow && tdLow.previousElementSibling;
+
+      const lowI   = tdLow  && tdLow.querySelector('input');
+      const highI  = tdHigh && tdHigh.querySelector('input');
+
+      // 숫자 그대로 넣고 input 이벤트로 내부 상태(rows)까지 갱신
+      const okHigh = setInputAndCommit(highI, cur + delta);
+      const okLow  = setInputAndCommit(lowI,  Math.max(0, cur - delta));
+
+      if (okHigh || okLow) changed++;
+    });
+
+    // 계산/표시 갱신
+    if (typeof updateProfits === 'function') updateProfits();
+    // (원하면 saveRows도)
+    if (typeof saveRows === 'function') saveRows();
+
+    alert(`목표가 세팅 완료: ${changed}개 행`);
+  });
 })();
 </script>
 
