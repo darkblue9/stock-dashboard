@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -858,8 +858,8 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
 
 <script>
 /* 목표가 세팅: 현재가 기준 상/하목표 일괄 세팅
-   - 현재가 ≥ 100,000 → +4,000 / -4,000
-   - 현재가 < 100,000  → +400  / -400
+   - 현재가 ≥ 100,000 → +3,000 / -3,000
+   - 현재가 < 100,000  → +300  / -300
 */
 (function () {
   const btn = document.getElementById('btnSetTargets');
@@ -886,7 +886,7 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
       const cur = parseNum(curInput.value);
       if (!cur) return;
 
-      const delta = (cur >= 100000) ? 4000 : 400;
+      const delta = (cur >= 100000) ? 3000 : 300;
 
       // 현재가 td → 왼쪽(하목표) → 그 왼쪽(상목표)
       const tdCur  = curInput.closest('td');
