@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -53,8 +53,9 @@ td input[readonly]{background:#f9f9f9}
 /* Keep current/exit cell width as-is (input width already 55%) */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
-col.col-fix { width: 70px; }     /* 매도가 컬럼폭, 가로폭 고정 */
-td.col-fix input.fix { width: 35px; }
+col.col-cur { width: 70px; }   td.col-cur input.cur { width: 40px; }
+col.col-fix { width: 70px; }   td.col-fix input.fix { width: 40px; }  /* 매도가 컬럼폭, 가로폭 고정 */
+
 /* th.col-fix input.fix { width: 35px; }  */
 
 /* 기존 Δ배지 숨김 */
