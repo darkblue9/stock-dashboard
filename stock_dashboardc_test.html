@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -227,7 +227,7 @@ function render(){
       <td><div class="target-cell"><span class="dot lt-dot"></span>
         <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 60px; text-align:right;">
       </div></td>
-      <td class="cur-cell"><input class="cur" readonly value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
+      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 60px; text-align:right;"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
