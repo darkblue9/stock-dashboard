@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -30,11 +30,6 @@ td input[readonly]{background:#f9f9f9}
 /* .target-cell input[type="number"]{width:72px} */
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
 
-/* ===== Column width tweaks ===== */
-/* col.col-qty{width:40px}              주수: 절반 수준(고정폭) */
-/* col.col-profit{width:6.8%}           손익(원): 대략 15% 축소 (8% -> 6.8%) */
-/* col.col-percent{width:5.1%}          손익(%): 15% 축소 (6% -> 5.1%) */
-
 /* === Added: sticky top total badge === */
 .top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
 .total-pos{color:green} .total-neg{color:red}
@@ -54,19 +49,17 @@ td input[readonly]{background:#f9f9f9}
 /* ################ 컬럼 폭 ################## */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
-col.col-code { width: 70px; }  /* td.code-cell input.code { width: 30px; } 코드 컬럼폭 */
-col.col-avg { width: 80px; }   /* td.col-avg input.avg { width: 40px; } 매수가 컬럼폭 */
-col.col-qty { width: 40px; }   /* td.col-qty input.qty { width: 30px; } 주수 컬럼폭 */
-col.col-inv { width: 90px; }   /* td.col-inv input.inv { width: 60px; } 투입금액 컬럼폭 */
-col.col-utarget { width: 100px; }   /* td.col-utarget input.utarget { width: 30px; } 상목표 컬럼폭 */
-col.col-ltarget { width: 100px; }   /* td.col-ltarget input.ltarget { width: 30px; } 하목표 컬럼폭 */
-col.col-cur { width: 80px; }   /* td.cur-cell input.cur { width: 30px; } 현재가 컬럼폭 */
-col.col-fix { width: 80px; }   /* td.col-fix input.fix { width: 30px; }  매도가 컬럼폭, 가로폭 고정 */
+col.col-code { width: 70px; }  /* 코드 컬럼폭 */
+col.col-avg { width: 80px; }   /*  매수가 컬럼폭 */
+col.col-qty { width: 40px; }   /*  주수 컬럼폭 */
+col.col-inv { width: 90px; }   /*  투입금액 컬럼폭 */
+col.col-utarget { width: 100px; }   /*  상목표 컬럼폭 */
+col.col-ltarget { width: 100px; }   /*  하목표 컬럼폭 */
+col.col-cur { width: 80px; }   /*  현재가 컬럼폭 */
+col.col-fix { width: 80px; }   /*  매도가 컬럼폭, 가로폭 고정 */
 col.col-profit { width: 70px; }   /* 손익(원) 컬럼폭 */
 col.col-percent { width: 60px; }   /* 손익(율) 컬럼폭 */
 col.col-act { width: 210px; }  /* 버튼 컬럼폭 */
-
-/* th.col-fix input.fix { width: 35px; }  */
 
 /* 기존 Δ배지 숨김 */
 .delta, .delta-badge, .delta-wrap { display: none !important; }
@@ -87,8 +80,8 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 .trend-dot.flat { background:#bfbfbf !important; opacity:.6 !important; animation:none !important; }
 
 	/* 1) 셀 안 input을 셀 폭에 맞게 (전역 55% 규칙 덮어쓰기) */
-#grid td > input {
-  /* width: 100%; */
+ #grid td > input {
+ width: 100%; 
   padding: 2px 3px;
   margin: 0;
   box-sizing: border-box;
@@ -96,7 +89,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 
 /* 2) 상/하목표 래퍼의 여백 축소 (점·input 사이 간격) */
 #grid .target-cell { gap: 2px; }
-/* #grid .target-cell input { width: 80px; }   필요하면 72~90px로 조절 */
+#grid .target-cell input { width: 80px; }  /*  필요하면 72~90px로 조절 */
 
 /* 3) 매도가 컬럼만 별도 폭 지정 (10번째 컬럼)
 #grid td:nth-child(10) input.fix {
@@ -225,7 +218,7 @@ function render(){
 	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}" style="width: 60px; text-align:right;"></td>
       <td><input class="name" value="${r.name||''}"></td>
-      <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 70px; text-align:right;"></td>
+      <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 60px; text-align:right;"></td>
       <td><input class="qty" value="${r.qty||''}" style="width: 30px; text-align:right;"></td>
       <td><input class="inv" readonly style="width: 70px;"></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span>
