@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -229,14 +229,13 @@ function render(){
       <td><input class="qty" value="${r.qty||''}" style="width: 30px; text-align:right;"></td>
       <td><input class="inv" readonly style="width: 70px;"></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span>
-        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가" style="width: 70px; text-align:right;">
+        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가" style="width: 60px; text-align:right;">
       </div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span>
-        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 70px; text-align:right;">
+        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 60px; text-align:right;">
       </div></td>
-      <td class="cur-cell"><input class="cur" readonly value="${r.cur?fmt(r.cur):''}" style="width: 70px; text-align:right;"></td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 70px; text-align:right;"></td>
-	  <!-- <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 50px;"></td> -->
+      <td class="cur-cell"><input class="cur" readonly value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
+      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 60px; text-align:right;"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
       <td><span class="actions"><button class="chart">차트</button><span class="mv"><button class="up">▲</button><button class="up10">▲10</button><button class="down10">▼10</button><button class="down">▼</button></span><button class="del">삭제</button></span></td>`;
