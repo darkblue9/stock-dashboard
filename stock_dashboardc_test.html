@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>9주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -54,14 +54,14 @@ td input[readonly]{background:#f9f9f9}
 /* ################ 컬럼 폭 ################## */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
-col.col-code { width: 70px; }   /* td.code-cell input.code { width: 30px; } 코드 컬럼폭 */
-col.col-avg { width: 80px; }   td.col-avg input.avg { width: 40px; } /* 매수가 컬럼폭 */
-col.col-qty { width: 40px; }   td.col-qty input.qty { width: 30px; } /* 주수 컬럼폭 */
-col.col-inv { width: 90px; }   td.col-inv input.inv { width: 60px; } /* 투입금액 컬럼폭 */
-col.col-utarget { width: 100px; }   td.col-utarget input.utarget { width: 30px; } /* 상목표 컬럼폭 */
-col.col-ltarget { width: 100px; }   td.col-ltarget input.ltarget { width: 30px; } /* 하목표 컬럼폭 */
-col.col-cur { width: 80px; }   td.cur-cell input.cur { width: 30px; } /* 현재가 컬럼폭 */
-col.col-fix { width: 80px; }   td.col-fix input.fix { width: 30px; }  /* 매도가 컬럼폭, 가로폭 고정 */
+col.col-code { width: 70px; }  /* td.code-cell input.code { width: 30px; } 코드 컬럼폭 */
+col.col-avg { width: 80px; }   /* td.col-avg input.avg { width: 40px; } 매수가 컬럼폭 */
+col.col-qty { width: 40px; }   /* td.col-qty input.qty { width: 30px; } 주수 컬럼폭 */
+col.col-inv { width: 90px; }   /* td.col-inv input.inv { width: 60px; } 투입금액 컬럼폭 */
+col.col-utarget { width: 100px; }   /* td.col-utarget input.utarget { width: 30px; } 상목표 컬럼폭 */
+col.col-ltarget { width: 100px; }   /* td.col-ltarget input.ltarget { width: 30px; } 하목표 컬럼폭 */
+col.col-cur { width: 80px; }   /* td.cur-cell input.cur { width: 30px; } 현재가 컬럼폭 */
+col.col-fix { width: 80px; }   /* td.col-fix input.fix { width: 30px; }  매도가 컬럼폭, 가로폭 고정 */
 col.col-profit { width: 70px; }   /* 손익(원) 컬럼폭 */
 col.col-percent { width: 60px; }   /* 손익(율) 컬럼폭 */
 col.col-act { width: 210px; }  /* 버튼 컬럼폭 */
@@ -223,19 +223,19 @@ function render(){
     const tr=document.createElement('tr');
     tr.innerHTML=`
 	  <td class="row-no">${i+1}</td>
-      <td><input class="code" value="${r.code||''}" style="width: 30px;"></td>
+      <td><input class="code" value="${r.code||''}" style="width: 70px;"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
       <td><input class="qty" value="${r.qty||''}"></td>
       <td><input class="inv" readonly></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span>
-        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가">
+        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가" style="width: 70px;">
       </div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span>
-        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가">
+        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 70px;">
       </div></td>
-      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}"></td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td>
+      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}" style="width: 70px;"></td>
+      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 70px;"></td>
 	  <!-- <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 50px;"></td> -->
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
