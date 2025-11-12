@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>9주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
 th,td{border:1px solid #ccc;padding:2px;text-align:center;vertical-align:middle}
 input,select,button{font:inherit;font-size:12px}
-td input{width:55%;text-align:right}
+/* td input{width:55%;text-align:right} */
+/* td input{text-align:right} */
 td input[readonly]{background:#f9f9f9}
 .status{font-size:11px}
 .profit-pos{color:green}
@@ -26,14 +27,8 @@ td input[readonly]{background:#f9f9f9}
 .blink-red-dot{animation:pulseRed .9s infinite;}
 .blink-blue-dot{animation:pulseBlue .9s infinite;}
 .target-cell{display:flex;align-items:center;gap:6px;justify-content:center}
-.target-cell input[type="number"]{width:72px}
+/* .target-cell input[type="number"]{width:72px} */
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
-
-/* ===== Column width tweaks ===== */
-col.col-qty{width:40px}              /* 주수: 절반 수준(고정폭) */
-col.col-profit{width:6.8%}           /* 손익(원): 대략 15% 축소 (8% -> 6.8%) */
-col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
-
 
 /* === Added: sticky top total badge === */
 .top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
@@ -51,9 +46,60 @@ col.col-percent{width:5.1%}          /* 손익(%): 15% 축소 (6% -> 5.1%) */
 .delta-pos{color:#c00;border-color:#c00}
 .delta-neg{color:#1e5aff;border-color:#1e5aff}
 
-/* Keep current/exit cell width as-is (input width already 55%) */
+/* ################ 컬럼 폭 ################## */
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
+col.col-code { width: 70px; }  /* 코드 컬럼폭 */
+col.col-avg { width: 80px; }   /*  매수가 컬럼폭 */
+col.col-qty { width: 40px; }   /*  주수 컬럼폭 */
+col.col-inv { width: 90px; }   /*  투입금액 컬럼폭 */
+col.col-utarget { width: 100px; }   /*  상목표 컬럼폭 */
+col.col-ltarget { width: 100px; }   /*  하목표 컬럼폭 */
+col.col-cur { width: 80px; }   /*  현재가 컬럼폭 */
+col.col-fix { width: 80px; }   /*  매도가 컬럼폭, 가로폭 고정 */
+col.col-profit { width: 70px; }   /* 손익(원) 컬럼폭 */
+col.col-percent { width: 60px; }   /* 손익(율) 컬럼폭 */
+col.col-act { width: 210px; }  /* 버튼 컬럼폭 */
+
+/* 기존 Δ배지 숨김 */
+.delta, .delta-badge, .delta-wrap { display: none !important; }
+
+/* 현재가 셀 하단 공간 확보 + 점 5개 위치 */
+td.cur-cell { position: relative; padding-bottom: 16px; }
+td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50%); bottom:1px; display:flex; gap:6px; }
+.trend-dot { width:8px; height:8px; border-radius:50%; background:#bfbfbf; opacity:.35 }
+.trend-dot.up   { background:#e53935; animation:blink 1s infinite; }
+.trend-dot.down { background:#1e88e5; animation:blink 1s infinite; }
+@keyframes blink { 0%,100%{opacity:.25} 50%{opacity:1} }
+/* 크기·속도·투명도: 변동폭 레벨별 */
+.trend-dot.small  { transform: scale(0.9);  opacity:.45; animation-duration:1.3s; }
+.trend-dot.medium { transform: scale(1.0);  opacity:.75; animation-duration:1.0s; }
+.trend-dot.big    { transform: scale(1.25); opacity:1.0;  animation-duration:0.7s; }
+
+/* 동일(변화 거의 0)일 때는 회색 고정점 */
+.trend-dot.flat { background:#bfbfbf !important; opacity:.6 !important; animation:none !important; }
+
+	/* 1) 셀 안 input을 셀 폭에 맞게 (전역 55% 규칙 덮어쓰기) */
+ #grid td > input {
+ width: 100%; 
+  padding: 2px 3px;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* 2) 상/하목표 래퍼의 여백 축소 (점·input 사이 간격) */
+#grid .target-cell { gap: 2px; }
+#grid .target-cell input { width: 80px; }  /*  필요하면 72~90px로 조절 */
+
+/* 3) 매도가 컬럼만 별도 폭 지정 (10번째 컬럼)
+#grid td:nth-child(10) input.fix {
+  width: 86px;      
+  box-sizing: border-box;
+} */  /* 지금 83px에서 +3px */
+
+/* 4) 셀 자체 패딩도 더 타이트하게 (원하면 유지) */
+#grid td { padding: 2px 3px; }
+	
 </style>
 </head>
 <body>
@@ -76,6 +122,8 @@ td.row-no  { text-align:center; color:#666; }
   <button id="cloudSaveBtn">클라우드 저장</button>
   <button id="cloudLoadBtn">클라우드 불러오기</button>
   <button id="copyTxtBtn">텍스트로 복사</button>
+  <button id="btnSortEmptyQty">정렬(주수없음)</button>
+  <button id="btnSetTargets">목표가 세팅</button>
   <span id="status" class="status">상태: 대기</span>
 </div>
 
@@ -168,19 +216,19 @@ function render(){
     const tr=document.createElement('tr');
     tr.innerHTML=`
 	  <td class="row-no">${i+1}</td>
-      <td><input class="code" value="${r.code||''}"></td>
+      <td><input class="code" value="${r.code||''}" style="width: 60px; text-align:right;"></td>
       <td><input class="name" value="${r.name||''}"></td>
-      <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
-      <td><input class="qty" value="${r.qty||''}"></td>
-      <td><input class="inv" readonly></td>
+      <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 60px; text-align:right;"></td>
+      <td><input class="qty" value="${r.qty||''}" style="width: 30px; text-align:right;"></td>
+      <td><input class="inv" readonly style="width: 70px;"></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span>
-        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가">
+        <input type="number" min="0" step="100" class="utarget" value="${r.utarget||''}" title="상한목표가" style="width: 60px; text-align:right;">
       </div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span>
-        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가">
+        <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 60px; text-align:right;">
       </div></td>
-      <td><input class="cur" value="${r.cur?fmt(r.cur):''}"></td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가"></td>
+      <td class="cur-cell"><input class="cur" readonly value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
+      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 60px; text-align:right;"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
       <td><span class="actions"><button class="chart">차트</button><span class="mv"><button class="up">▲</button><button class="up10">▲10</button><button class="down10">▼10</button><button class="down">▼</button></span><button class="del">삭제</button></span></td>`;
@@ -608,15 +656,33 @@ document.addEventListener('click',(e)=>{
 </div>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-function paintQtyCells(){
-  document.querySelectorAll('#tbody tr').forEach(tr=>{
-    const qtyInput = tr.querySelector('.qty');
-    if(!qtyInput) return;
-    const v = Number(String(qtyInput.value).replace(/,/g,'')) || 0;
-    const td = qtyInput.closest('td');
-    td.style.backgroundColor = v>0 ? '#99ffcc' : '';
-  });
+// ===== 주수 셀 페인팅: 클래스(.filled)와 TD 배경을 함께 토글 =====
+function paintQtyCell(el){
+  if(!el) return;
+  const v = Number(String(el.value).replace(/,/g,'')) || 0;
+  // 입력창 배경 (기존 .qty.filled 스타일도 고려)
+  el.classList.toggle('filled', v > 0);
+  // 셀(전체 td) 배경
+  const td = el.closest('td');
+  if(td) td.style.backgroundColor = v > 0 ? '#99ffcc' : '';
 }
+
+function paintAllQty(){
+  document.querySelectorAll('#tbody .qty').forEach(paintQtyCell);
+}
+
+// 1) 최초 로드 때 한 번
+document.addEventListener('DOMContentLoaded', paintAllQty);
+
+// 2) 주수 입력이 바뀔 때마다 (이벤트 위임으로 동적 행에도 자동 적용)
+document.addEventListener('input', (e)=>{
+  const el = e.target && e.target.closest('.qty');
+  if(el) paintQtyCell(el);
+});
+
+// 3) (선택) 네가 정렬/렌더 후에 별도 호출하고 싶다면 이걸 불러줘
+window.paintAllQty = paintAllQty;
+
 
 document.addEventListener('DOMContentLoaded', ()=>{
   paintQtyCells();
@@ -645,6 +711,233 @@ document.addEventListener('click', function (ev) {
     alert('차트 표시 중 오류: ' + e.message);
   }
 }, true); // ← 캡처 단계에서 먼저 잡아서 다른 코드가 막아도 동작
+</script>
+
+<script>
+
+document.getElementById('btnSortEmptyQty').addEventListener('click', () => {
+  // 주수 컬럼 기준 분리
+  const filled = rows.filter(r => r.qty && Number(r.qty) > 0);
+  const empty = rows.filter(r => !r.qty || Number(r.qty) <= 0);
+
+  // 종목 이름 기준 오름차순 정렬 (빈 항목만)
+  empty.sort((a, b) => {
+    const na = (a.name || '').trim();
+    const nb = (b.name || '').trim();
+    return na.localeCompare(nb, 'ko', { sensitivity: 'base' });
+  });
+
+  // 합치고 렌더링
+  rows = [...filled, ...empty];
+  render();
+  paintQtyCells();// 렌더링 후 색상 다시 칠하기
+});
+
+document.addEventListener('input', (e)=>{
+  const el = e.target && e.target.closest('.qty');
+  if(el) paintQtyCell(el);
+});
+
+// --- 핵심 1: render() 끝나면 항상 다시 칠하기 ---
+if (typeof render === 'function') {
+  const __origRender = render;
+  render = function(...args){
+    const r = __origRender.apply(this, args);
+    // 렌더가 DOM에 반영된 다음 프레임에 칠하기
+    queueMicrotask(paintAllQty);
+    return r;
+  };
+}
+
+// --- 핵심 2: tbody 변화 감지해서 자동 재칠 (정렬/추가/삭제 모두 커버) ---
+const tbody = document.querySelector('#tbody');
+if (tbody) {
+  const mo = new MutationObserver((list)=>{
+    if (list.some(m=>m.type==='childList')) paintAllQty();
+  });
+  mo.observe(tbody, {childList:true});
+}
+
+// 초기 1회
+document.addEventListener('DOMContentLoaded', paintAllQty);
+
+
+</script>
+
+<script>
+/* ===== 주수 색칠(호환 가드) ===== */
+(function(){
+  // 기존에 paintAllQty만 있고 paintQtyCells를 참조하는 곳이 있으면 호환용으로 매핑
+  if (!window.paintQtyCells && typeof window.paintAllQty === 'function') {
+    window.paintQtyCells = window.paintAllQty;
+  }
+})();
+
+/* ===== 현재가 하단 '최근 5 스냅샷 비교' 점 5개 ===== */
+(function(){
+  // 안전 가드: 중복 주입 방지
+  if (window.__trendDotsInstalled) return;
+  window.__trendDotsInstalled = true;
+
+  function ensureDotsBox(tr){
+    const curTd = tr.querySelector('.cur')?.closest('td');
+    if (!curTd) return null;
+    let box = curTd.querySelector('.trend-dots');
+    if (!box){
+      box = document.createElement('div');
+      box.className = 'trend-dots';
+      curTd.appendChild(box);
+    }
+    return box;
+  }
+
+  function updateTrendDotsForRow(tr){
+  const code = (tr.querySelector('.code')?.value || '').trim();
+  const cur  = Number(String(tr.querySelector('.cur')?.value || '').replace(/[^\d.-]/g,'')) || 0;
+  const box  = ensureDotsBox(tr);
+  if (!box) return;
+
+  const hist = (typeof hLoad === 'function') ? (hLoad(code) || []) : [];
+
+  // 직전 1칸 ~ 5칸 전 스냅샷
+  const last5 = [];
+  for (let k=1;k<=5;k++){
+    const idx = hist.length - k;
+    last5.push(idx>=0 ? hist[idx] : null);
+  }
+
+  // 레벨 임계치(변동률 %). 필요하면 조절: 0.2% / 0.6% / 나머지
+  const T_SMALL  = 0.2;
+  const T_MEDIUM = 0.6;
+
+  box.innerHTML = '';
+  last5.forEach((h, nIdx)=>{
+    const dot = document.createElement('span');
+    dot.className = 'trend-dot';
+    let title = '스냅샷 없음';
+
+    if (h && cur > 0 && h.p > 0) {
+      const diff = cur - h.p;
+      const pct  = Math.abs(diff) / h.p * 100; // 변동률(%)
+
+      // 크기/속도 등급 부여
+      if (pct < T_SMALL)      dot.classList.add('small');
+      else if (pct < T_MEDIUM)dot.classList.add('medium');
+      else                    dot.classList.add('big');
+
+      if (diff > 0) dot.classList.add('up');
+      else if (diff < 0) dot.classList.add('down');
+      else dot.classList.add('flat');
+
+      // 툴팁(마우스오버)
+      const agoMin = (nIdx+1)*5; // 5,10,15,20,25분 전
+      title = `${agoMin}분 전: ${h.p.toLocaleString()} → 현재 ${cur.toLocaleString()}  (${diff>0?'+':''}${(diff).toLocaleString()} / ${(diff/h.p*100).toFixed(2)}%)`;
+    } else {
+      dot.classList.add('flat');
+    }
+
+    dot.title = title;
+    box.appendChild(dot);
+  });
+}
+
+  function refreshTrendDotsAll(){
+    document.querySelectorAll('#tbody tr').forEach(updateTrendDotsForRow);
+  }
+
+  // 입력으로 현재가 변경 시 즉시 반영 (위임)
+  document.addEventListener('input', (e)=>{
+    const el = e.target && e.target.closest('.cur');
+    if (el){
+      const tr = el.closest('tr');
+      if (tr) updateTrendDotsForRow(tr);
+    }
+  });
+
+  // 렌더 끝나면 자동 반영 (중복 래핑 방지)
+  if (typeof render === 'function' && !render.__wrappedForTrendDots){
+    const __origRender = render;
+    render = function(...args){
+      const r = __origRender.apply(this, args);
+      queueMicrotask(refreshTrendDotsAll);
+      return r;
+    };
+    render.__wrappedForTrendDots = true;
+  }
+
+  // tbody 변경 감지 (이름 충돌 방지: tbodyTrend)
+  const tbodyTrend = document.querySelector('#tbody');
+  if (tbodyTrend){
+    const moTrend = new MutationObserver((list)=>{
+      if (list.some(m => m.type === 'childList')) refreshTrendDotsAll();
+    });
+    moTrend.observe(tbodyTrend, { childList: true });
+  }
+
+  // 초기 1회
+  if (document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', refreshTrendDotsAll);
+  } else {
+    refreshTrendDotsAll();
+  }
+})();
+</script>
+
+<script>
+/* 목표가 세팅: 현재가 기준 상/하목표 일괄 세팅
+   - 현재가 ≥ 100,000 → +3,000 / -3,000
+   - 현재가 < 100,000  → +300  / -300
+*/
+(function () {
+  const btn = document.getElementById('btnSetTargets');
+  if (!btn) return;
+
+  const parseNum = s => Number(String(s).replace(/[^\d.-]/g, '')) || 0;
+
+  // input 값 세팅 + 'input' 이벤트 강제 발생(내부 rows 동기화)
+  function setInputAndCommit(input, valueNumber) {
+    if (!input) return false;
+    input.value = String(valueNumber);              // 숫자 형태로 넣고
+    input.dispatchEvent(new Event('input', { bubbles: true }));  // rows 갱신 트리거
+    return true;
+  }
+
+  btn.addEventListener('click', () => {
+    const trs = document.querySelectorAll('#tbody tr');
+    let changed = 0;
+
+    trs.forEach(tr => {
+      const curInput = tr.querySelector('.cur');
+      if (!curInput) return;
+
+      const cur = parseNum(curInput.value);
+      if (!cur) return;
+
+      const delta = (cur >= 100000) ? 3000 : 300;
+
+      // 현재가 td → 왼쪽(하목표) → 그 왼쪽(상목표)
+      const tdCur  = curInput.closest('td');
+      const tdLow  = tdCur && tdCur.previousElementSibling;
+      const tdHigh = tdLow && tdLow.previousElementSibling;
+
+      const lowI   = tdLow  && tdLow.querySelector('input');
+      const highI  = tdHigh && tdHigh.querySelector('input');
+
+      // 숫자 그대로 넣고 input 이벤트로 내부 상태(rows)까지 갱신
+      const okHigh = setInputAndCommit(highI, cur + delta);
+      const okLow  = setInputAndCommit(lowI,  Math.max(0, cur - delta));
+
+      if (okHigh || okLow) changed++;
+    });
+
+    // 계산/표시 갱신
+    if (typeof updateProfits === 'function') updateProfits();
+    // (원하면 saveRows도)
+    if (typeof saveRows === 'function') saveRows();
+
+    alert(`목표가 세팅 완료: ${changed}개 행`);
+  });
+})();
 </script>
 
 </body>
