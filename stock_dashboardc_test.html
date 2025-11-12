@@ -3,13 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
 th,td{border:1px solid #ccc;padding:2px;text-align:center;vertical-align:middle}
 input,select,button{font:inherit;font-size:12px}
-td input{width:55%;text-align:right}
+/* td input{width:55%;text-align:right} */
+/* td input{text-align:right} */
 td input[readonly]{background:#f9f9f9}
 .status{font-size:11px}
 .profit-pos{color:green}
@@ -26,7 +27,7 @@ td input[readonly]{background:#f9f9f9}
 .blink-red-dot{animation:pulseRed .9s infinite;}
 .blink-blue-dot{animation:pulseBlue .9s infinite;}
 .target-cell{display:flex;align-items:center;gap:6px;justify-content:center}
-.target-cell input[type="number"]{width:72px}
+/* .target-cell input[type="number"]{width:72px} */
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
 
 /* ===== Column width tweaks ===== */
@@ -87,7 +88,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 
 	/* 1) 셀 안 input을 셀 폭에 맞게 (전역 55% 규칙 덮어쓰기) */
 #grid td > input {
-  width: 100%;
+  /* width: 100%; */
   padding: 2px 3px;
   margin: 0;
   box-sizing: border-box;
@@ -95,7 +96,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 
 /* 2) 상/하목표 래퍼의 여백 축소 (점·input 사이 간격) */
 #grid .target-cell { gap: 2px; }
-#grid .target-cell input { width: 80px; }   /* 필요하면 72~90px로 조절 */
+/* #grid .target-cell input { width: 80px; }   필요하면 72~90px로 조절 */
 
 /* 3) 매도가 컬럼만 별도 폭 지정 (10번째 컬럼)
 #grid td:nth-child(10) input.fix {
