@@ -1,9 +1,10 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -104,7 +105,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 </head>
 <body>
 <div>
-  <label>프록시 <input id="apiBase" value="http://localhost:3000" style="width:140px"></label>
+  <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:140px"></label>
   <label>엔드포인트 
     <select id="apiMode">
       <option value="auto" selected>자동</option>
@@ -179,7 +180,7 @@ function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 function loadAll(){
   rows=loadJSON(KEY_ROWS,[]);
   settings=Object.assign({
-    apiBase:'http://localhost:3000', apiMode:'auto', codeParam:'code', priceKey:'price',
+    apiBase:'https://stock-dashboard.respite9.workers.dev', apiMode:'auto', codeParam:'code', priceKey:'price',
     multiTpl:'/api/prices?codes={codes}', singleTpl:'/api/price?{codeParam}={code}', pollSec:10
   }, loadJSON(KEY_SET,{}));
 }
@@ -198,8 +199,9 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 function normalizeCode(code){
   let c=(code||'').trim().toUpperCase();
   if(!c) return c;
-  if(/^\d{6}$/.test(c)) c+='.KS';
-  return c;
+  // 예전: 6자리면 .KS 붙였음 → 삭제
+  // 영문/마켓 접미사가 이미 있으면 그대로 둠
+  return c;  // 6자리 숫자 그대로, 또는 이미 포함된 문자열 그대로 사용
 }
 
 /* step 동적 조절 */
@@ -227,7 +229,7 @@ function render(){
       <td><div class="target-cell"><span class="dot lt-dot"></span>
         <input type="number" min="0" step="100" class="ltarget" value="${r.ltarget||''}" title="하한목표가" style="width: 60px; text-align:right;">
       </div></td>
-      <td class="cur-cell"><input class="cur" readonly value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
+      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}" style="width: 60px; text-align:right;"></td>
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" title="매도가" style="width: 60px; text-align:right;"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
@@ -459,7 +461,7 @@ function bindTopbar(){
 function loadAllAndStart(){
   try{ const s=JSON.parse(localStorage.getItem(KEY_SET)||'null'); if(s) settings=s; }catch{}
   settings=Object.assign({
-    apiBase:'http://localhost:3000', apiMode:'auto', codeParam:'code', priceKey:'price',
+    apiBase:'https://stock-dashboard.respite9.workers.dev', apiMode:'auto', codeParam:'code', priceKey:'price',
     multiTpl:'/api/prices?codes={codes}', singleTpl:'/api/price?{codeParam}={code}', pollSec:10
   }, settings||{});
   [['apiBase','apiBase'],['apiMode','apiMode'],['codeParam','codeParam'],['priceKey','priceKey'],
