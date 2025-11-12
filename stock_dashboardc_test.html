@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>8주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -179,7 +179,7 @@ function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 function loadAll(){
   rows=loadJSON(KEY_ROWS,[]);
   settings=Object.assign({
-    apiBase:'http://localhost:3000', apiMode:'auto', codeParam:'code', priceKey:'price',
+    apiBase:'https://stock-dashboard.respite9.workers.dev', apiMode:'auto', codeParam:'code', priceKey:'price',
     multiTpl:'/api/prices?codes={codes}', singleTpl:'/api/price?{codeParam}={code}', pollSec:10
   }, loadJSON(KEY_SET,{}));
 }
@@ -459,7 +459,7 @@ function bindTopbar(){
 function loadAllAndStart(){
   try{ const s=JSON.parse(localStorage.getItem(KEY_SET)||'null'); if(s) settings=s; }catch{}
   settings=Object.assign({
-    apiBase:'http://localhost:3000', apiMode:'auto', codeParam:'code', priceKey:'price',
+    apiBase:'https://stock-dashboard.respite9.workers.dev', apiMode:'auto', codeParam:'code', priceKey:'price',
     multiTpl:'/api/prices?codes={codes}', singleTpl:'/api/price?{codeParam}={code}', pollSec:10
   }, settings||{});
   [['apiBase','apiBase'],['apiMode','apiMode'],['codeParam','codeParam'],['priceKey','priceKey'],
