@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>8주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>9주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -198,8 +198,9 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 function normalizeCode(code){
   let c=(code||'').trim().toUpperCase();
   if(!c) return c;
-  if(/^\d{6}$/.test(c)) c+='.KS';
-  return c;
+  // 예전: 6자리면 .KS 붙였음 → 삭제
+  // 영문/마켓 접미사가 이미 있으면 그대로 둠
+  return c;  // 6자리 숫자 그대로, 또는 이미 포함된 문자열 그대로 사용
 }
 
 /* step 동적 조절 */
