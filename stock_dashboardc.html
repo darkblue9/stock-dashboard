@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -154,6 +153,37 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 <div id="topTotal" class="top-total">총 손익: 0</div>
 <div>총 손익: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26%)</div>
 
+<!-- mobile polyfills: Promise.allSettled + safe fetch -->
+<script>
+// 1) Promise.allSettled 폴리필 (구형 삼성 인터넷)
+if (!Promise.allSettled) {
+  Promise.allSettled = function(promises){
+    return Promise.all(promises.map(function(p){
+      return Promise.resolve(p).then(
+        function(value){ return {status:'fulfilled', value:value}; },
+        function(reason){ return {status:'rejected',  reason:reason}; }
+      );
+    }));
+  };
+}
+
+// 2) fetch 래퍼: 항상 CORS/omit
+window.__fetch = function(url, init){
+  init = init || {};
+  if (!init.mode)        init.mode        = 'cors';
+  if (!init.credentials) init.credentials = 'omit';
+  return fetch(url, init);
+};
+
+// 3) 기본 프록시 자동 채우기(비어있거나 http/https 미포함일 때)
+(function(){
+  var def = 'https://stock-dashboard.respite9.workers.dev';
+  var ip  = document.getElementById('apiBase');   // 상단 '프록시' input
+  if (ip && (!ip.value || !/^https?:\/\//i.test(ip.value))) ip.value = def;
+})();
+</script>
+
+
 <script>
 const $=(s,el=document)=>el.querySelector(s);
 const $$=(s,el=document)=>Array.from(el.querySelectorAll(s));
@@ -199,16 +229,19 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 function normalizeCode(code){
   let c=(code||'').trim().toUpperCase();
   if(!c) return c;
-  // 예전: 6자리면 .KS 붙였음 → 삭제
-  // 영문/마켓 접미사가 이미 있으면 그대로 둠
-  return c;  // 6자리 숫자 그대로, 또는 이미 포함된 문자열 그대로 사용
+  if(/^\d{6}$/.test(c)) c+='.KS';
+  return c;
+}
+function normKey(c){
+  return String(c || '').trim().toUpperCase().replace(/\.KS$/, '');
 }
 
 /* step 동적 조절 */
 function adjustStepForRow(tr){
-  const curVal=toNum(tr.querySelector('.cur')?.value);
-  const step=curVal>=100000?500:100;
-  tr.querySelectorAll('.utarget,.ltarget').forEach(inp=>{ if(inp) inp.step=step; });
+  const curEl  = tr.querySelector('.cur');
+  const curVal = Number(String(curEl?.value || '').replace(/[^\d.-]/g,'')) || 0;
+  const step   = curVal >= 100000 ? 500 : 100;   // 10만 이상이면 500틱, 아니면 100틱
+  tr.querySelectorAll('.utarget,.ltarget').forEach(inp => { if (inp) inp.step = step; });
 }
 function adjustAllSteps(){ $$('#tbody tr').forEach(adjustStepForRow); }
 
@@ -254,23 +287,31 @@ function render(){
 }
 
 function applyRow(i,tr,live){
-  const r=rows[i]||(rows[i]={});
-  const get=(sel)=> (tr.querySelector(sel)?.value || '').trim();
-  r.code=get('.code'); r.name=get('.name');
-  r.avg=toNum(get('.avg')); r.qty=toNum(get('.qty'));
-  r.cur=toNum(get('.cur')); r.fix=toNum(get('.fix'));
-  r.utarget=toNum(get('.utarget')); r.ltarget=toNum(get('.ltarget'));
-  r.inv=(r.avg||0)*(r.qty||0);
-  tr.querySelector('.inv').value=fmt(r.inv||0);
+  const r = rows[i] || (rows[i] = {});
+  const get = (sel) => {
+    const el = tr.querySelector(sel);
+    return ((el ? el.value : '') || '').trim();
+  };
+  r.code    = get('.code');   r.name   = get('.name');
+  r.avg     = toNum(get('.avg'));
+  r.qty     = toNum(get('.qty'));
+  r.cur     = toNum(get('.cur'));
+  r.fix     = toNum(get('.fix'));
+  r.utarget = toNum(get('.utarget'));
+  r.ltarget = toNum(get('.ltarget'));
+  r.inv     = (r.avg||0) * (r.qty||0);
+
+  tr.querySelector('.inv').value = fmt(r.inv || 0);
   if(!live){
-    tr.querySelector('.avg').value=r.avg?fmt(r.avg):'';
-    tr.querySelector('.cur').value=r.cur?fmt(r.cur):'';
-    tr.querySelector('.fix').value=r.fix?fmt(r.fix):'';
+    tr.querySelector('.avg').value = r.avg ? fmt(r.avg) : '';
+    tr.querySelector('.cur').value = r.cur ? fmt(r.cur) : '';
+    tr.querySelector('.fix').value = r.fix ? fmt(r.fix) : '';
   }
   adjustStepForRow(tr);
   saveRows();
   updateProfits();
 }
+
 
 function updateProfits(){
   let total=0;
@@ -293,18 +334,19 @@ function updateProfits(){
   saveRows();
 }
 
+function buildUrlMulti(codes){
+  var base=(document.getElementById('apiBase').value||'').trim().replace(/\/$/,'');
+  var path='/api/prices?codes='+encodeURIComponent(codes.join(','));
+  return base+path+'&t='+Date.now();
+}
+	
 function buildUrlSingle(code){
   const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
-  const tpl=('/api/price?{codeParam}={code}');
+  const tpl = '/api/price?{codeParam}={code}';
   const codeParam=($('#codeParam').value||'code').trim();
-  const path=tpl.replace('{code}', encodeURIComponent(code)).replace('{codeParam}', encodeURIComponent(codeParam));
-  return base+path;
-}
-function buildUrlMulti(codes){
-  const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
-  const tpl=('/api/prices?codes={codes}');
-  const path=tpl.replace('{codes}', encodeURIComponent(codes.join(',')));
-  return base+path;
+  const path=tpl.replace('{code}', encodeURIComponent(code))
+                .replace('{codeParam}', encodeURIComponent(codeParam));
+  return base + path + '&t=' + Date.now();     // ← 추가
 }
 
 async function fetchPricesAuto(codes){
@@ -319,53 +361,149 @@ async function fetchPricesAuto(codes){
     setStatus(err.message||'오류', false);
   }
 }
+	
+// 멀티: /api/prices?codes=...  (워커/로컬 모두 호환)
 async function fetchPricesMulti(codes){
   saveSettings();
-  const url=buildUrlMulti(codes.map(normalizeCode));
-  const res=await fetch(url,{cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  const j=await res.json();
-  const priceKey=($('#priceKey').value||'price').trim();
-  const codeParam=($('#codeParam').value||'code').trim();
-  const arr=Array.isArray(j)?j:(j.data||j.results||[]);
-  arr.forEach(p=>{
-    const code=String(p[codeParam]||p.code||p.symbol||p.ticker||'').toUpperCase();
-    const price=Number(getByPath(p,priceKey))||Number(p.price)||Number(p.last)||0;
-    rows.forEach(row=>{ if(normalizeCode(row.code)===code){ row.cur=price||row.cur||0; } });
+
+  // 1) URL
+  const url = buildUrlMulti(codes.map(normalizeCode));
+
+  // 2) 호출 (모바일 안전: cors/omit + no-store)
+  const res = await __fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+
+  // 3) 응답 파싱(모든 변종 흡수)
+  const j = await res.json();
+  let arr = [];
+  if (Array.isArray(j)) arr = j;
+  else if (Array.isArray(j.data)) arr = j.data;
+  else if (j && j.data && Array.isArray(j.data.data)) arr = j.data.data;
+  else if (Array.isArray(j.results)) arr = j.results;
+  else if (j && typeof j === 'object') {
+    // 객체 사전형(키→배열)도 펼쳐서 합침
+    Object.keys(j).forEach(k => { if (Array.isArray(j[k])) arr = arr.concat(j[k]); });
+  }
+
+  // 4) 코드/가격 꺼내기(키 자동 추론)
+  const priceKey = ($('#priceKey').value || 'price').trim();
+  const codeKey  = ($('#codeParam').value || 'code').trim();
+
+  const priceMap = new Map();
+  arr.forEach(p => {
+    const rawCode =
+      (p && (p[codeKey] || p.code || p.symbol || p.ticker || p.cd)) || '';
+    const key = normKey(rawCode);             // '005930' 통일
+    const price =
+      Number(getByPath(p, priceKey)) ||
+      Number(p && p.price) ||
+      Number(p && p.last) ||
+      Number(p && p.nv) ||                    // 네이버 필드
+      0;
+    if (key) priceMap.set(key, price);
   });
-  saveRows();
-  $$('#tbody tr').forEach((tr,i)=>{
-    const inp=tr.querySelector('.cur');
-    if(inp) inp.value = rows[i].cur?fmt(rows[i].cur):'';
-    adjustStepForRow(tr);
-  });
-  updateProfits();
-}
-async function fetchPricesSingle(codes){
-  saveSettings();
-  const priceKey=($('#priceKey').value||'price').trim();
-  const results=await Promise.allSettled(codes.map(async code=>{
-    const url=buildUrlSingle(normalizeCode(code));
-    const res=await fetch(url,{cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const j=await res.json();
-    const price=Number(getByPath(j,priceKey))||Number(j.price)||Number(j.last)||Number(j?.data?.price)||0;
-    return {code:normalizeCode(code), price};
-  }));
-  results.forEach(r=>{
-    if(r.status==='fulfilled'){
-      const {code,price}=r.value;
-      rows.forEach(row=>{ if(normalizeCode(row.code)===code){ row.cur=price||row.cur||0; } });
+
+  // 5) rows 반영(들어온 것만 업데이트, 0도 값으로 인정)
+  rows.forEach(row => {
+    const key = normKey(row.code);
+    if (priceMap.has(key)) {
+      const v = priceMap.get(key);
+      row.cur = (typeof v === 'number') ? v : (Number(v) || 0);
     }
   });
   saveRows();
-  $$('#tbody tr').forEach((tr,i)=>{
-    const inp=tr.querySelector('.cur');
-    if(inp) inp.value = rows[i].cur?fmt(rows[i].cur):'';
+
+  // 6) 화면 값 채우기
+  $$('#tbody tr').forEach((tr, i) => {
+    const inp = tr.querySelector('.cur');
+    if (!inp) return;
+    const v = rows[i] && rows[i].cur;
+    inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
     adjustStepForRow(tr);
   });
+
   updateProfits();
+  setStatus('OK', true);
+    updateProfits();
+  setStatus('OK', true);
+
+  // --- UI 강제 리렌더 ---
+  if (typeof render === 'function') {
+    queueMicrotask(() => render());       // 다음 프레임에서 전체 테이블 다시 칠함
+  } else {
+    // 혹시 render가 없다면 현재가 칸만 직접 칠하기(폴백)
+    document.querySelectorAll('#tbody tr').forEach((tr, i) => {
+      const v = rows[i]?.cur;
+      const inp = tr.querySelector('input.cur, input[name="cur"], input[data-col="cur"]');
+      if (!inp) return;
+      inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
+    });
+  }
 }
+
+// 단건: /api/price?code=...
+async function fetchPricesSingle(codes){
+  saveSettings();
+  const priceKey = ($('#priceKey').value || 'price').trim();
+
+  const results = await Promise.allSettled(
+    codes.map(async (code) => {
+      const url = buildUrlSingle(normalizeCode(code));
+      const res = await __fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+
+      const price =
+        Number(getByPath(j, priceKey)) ||
+        Number(j && j.price) ||
+        Number(j && j.data && j.data.price) ||
+        0;
+
+      return { code: normKey(code), price };
+    })
+  );
+
+  results.forEach(r => {
+    if (r.status === 'fulfilled') {
+      const { code, price } = r.value;
+      rows.forEach(row => {
+        if (normKey(row.code) === code) {
+          row.cur = (typeof price === 'number') ? price : (Number(price) || row.cur || 0);
+        }
+      });
+    }
+  });
+
+  saveRows();
+  $$('#tbody tr').forEach((tr, i) => {
+    const inp = tr.querySelector('.cur');
+    if (inp) {
+      const v = rows[i]?.cur;
+      inp.value = v ? fmt(v) : '';
+      adjustStepForRow(tr);
+    }
+  });
+
+  updateProfits();
+  setStatus('OK', true);
+    updateProfits();
+  setStatus('OK', true);
+
+  // --- UI 강제 리렌더 ---
+  if (typeof render === 'function') {
+    queueMicrotask(() => render());       // 다음 프레임에서 전체 테이블 다시 칠함
+  } else {
+    // 혹시 render가 없다면 현재가 칸만 직접 칠하기(폴백)
+    document.querySelectorAll('#tbody tr').forEach((tr, i) => {
+      const v = rows[i]?.cur;
+      const inp = tr.querySelector('input.cur, input[name="cur"], input[data-col="cur"]');
+      if (!inp) return;
+      inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
+    });
+  }
+
+}
+
 
 let timerId=null;
 function tick(){
