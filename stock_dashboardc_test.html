@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>1주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -232,6 +232,9 @@ function normalizeCode(code){
   if(/^\d{6}$/.test(c)) c+='.KS';
   return c;
 }
+function normKey(c){
+  return String(c || '').trim().toUpperCase().replace(/\.KS$/, '');
+}
 
 /* step 동적 조절 */
 function adjustStepForRow(tr){
@@ -322,18 +325,19 @@ function updateProfits(){
   saveRows();
 }
 
-function buildUrlSingle(code){
-  const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
-  const tpl=('/api/price?{codeParam}={code}');
-  const codeParam=($('#codeParam').value||'code').trim();
-  const path=tpl.replace('{code}', encodeURIComponent(code)).replace('{codeParam}', encodeURIComponent(codeParam));
-  return base+path;
-}
 function buildUrlMulti(codes){
   const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
-  const tpl=('/api/prices?codes={codes}');
+  const tpl = '/api/prices?codes={codes}';
   const path=tpl.replace('{codes}', encodeURIComponent(codes.join(',')));
-  return base+path;
+  return base + path + '&t=' + Date.now();     // ← 추가
+}
+function buildUrlSingle(code){
+  const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
+  const tpl = '/api/price?{codeParam}={code}';
+  const codeParam=($('#codeParam').value||'code').trim();
+  const path=tpl.replace('{code}', encodeURIComponent(code))
+                .replace('{codeParam}', encodeURIComponent(codeParam));
+  return base + path + '&t=' + Date.now();     // ← 추가
 }
 
 async function fetchPricesAuto(codes){
@@ -358,9 +362,12 @@ async function fetchPricesMulti(codes){
   const codeParam=($('#codeParam').value||'code').trim();
   const arr=Array.isArray(j)?j:(j.data||j.results||[]);
   arr.forEach(p=>{
-    const code=String(p[codeParam]||p.code||p.symbol||p.ticker||'').toUpperCase();
-    const price=Number(getByPath(p,priceKey))||Number(p.price)||Number(p.last)||0;
-    rows.forEach(row=>{ if(normalizeCode(row.code)===code){ row.cur=price||row.cur||0; } });
+    const codeRaw = String(p[codeParam]||p.code||p.symbol||p.ticker||'');
+    const code    = normKey(codeRaw);
+    const price   = Number(getByPath(p,priceKey))||Number(p.price)||Number(p.last)||0;
+    rows.forEach(row=>{
+      if (normKey(row.code) === code) { row.cur = price || row.cur || 0; }
+    });
   });
   saveRows();
   $$('#tbody tr').forEach((tr,i)=>{
@@ -373,18 +380,21 @@ async function fetchPricesMulti(codes){
 async function fetchPricesSingle(codes){
   saveSettings();
   const priceKey=($('#priceKey').value||'price').trim();
-  const results=await Promise.allSettled(codes.map(async code=>{
-    const url=buildUrlSingle(normalizeCode(code));
+	
+  const results = await Promise.allSettled(codes.map(async code=>{
+    const url = buildUrlSingle(normalizeCode(code));
     const res=await __fetch(url,{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const j=await res.json();
     const price=Number(getByPath(j,priceKey))||Number(j.price)||Number(j.last)||Number(j?.data?.price)||0;
-    return {code:normalizeCode(code), price};
+    return { code: normKey(code), price };
   }));
   results.forEach(r=>{
-    if(r.status==='fulfilled'){
-      const {code,price}=r.value;
-      rows.forEach(row=>{ if(normalizeCode(row.code)===code){ row.cur=price||row.cur||0; } });
+    if (r.status === 'fulfilled') {
+      const { code, price } = r.value;
+      rows.forEach(row=>{
+        if (normKey(row.code) === code) { row.cur = price || row.cur || 0; }
+      });
     }
   });
   saveRows();
