@@ -153,6 +153,37 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 <div id="topTotal" class="top-total">총 손익: 0</div>
 <div>총 손익: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26%)</div>
 
+<!-- mobile polyfills: Promise.allSettled + safe fetch -->
+<script>
+// 1) Promise.allSettled 폴리필 (구형 삼성 인터넷)
+if (!Promise.allSettled) {
+  Promise.allSettled = function(promises){
+    return Promise.all(promises.map(function(p){
+      return Promise.resolve(p).then(
+        function(value){ return {status:'fulfilled', value:value}; },
+        function(reason){ return {status:'rejected',  reason:reason}; }
+      );
+    }));
+  };
+}
+
+// 2) fetch 래퍼: 항상 CORS/omit
+window.__fetch = function(url, init){
+  init = init || {};
+  if (!init.mode)        init.mode        = 'cors';
+  if (!init.credentials) init.credentials = 'omit';
+  return fetch(url, init);
+};
+
+// 3) 기본 프록시 자동 채우기(비어있거나 http/https 미포함일 때)
+(function(){
+  var def = 'https://stock-dashboard.respite9.workers.dev';
+  var ip  = document.getElementById('apiBase');   // 상단 '프록시' input
+  if (ip && (!ip.value || !/^https?:\/\//i.test(ip.value))) ip.value = def;
+})();
+</script>
+
+
 <script>
 const $=(s,el=document)=>el.querySelector(s);
 const $$=(s,el=document)=>Array.from(el.querySelectorAll(s));
@@ -198,9 +229,8 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 function normalizeCode(code){
   let c=(code||'').trim().toUpperCase();
   if(!c) return c;
-  // 예전: 6자리면 .KS 붙였음 → 삭제
-  // 영문/마켓 접미사가 이미 있으면 그대로 둠
-  return c;  // 6자리 숫자 그대로, 또는 이미 포함된 문자열 그대로 사용
+  if(/^\d{6}$/.test(c)) c+='.KS';
+  return c;
 }
 
 /* step 동적 조절 */
@@ -321,7 +351,7 @@ async function fetchPricesAuto(codes){
 async function fetchPricesMulti(codes){
   saveSettings();
   const url=buildUrlMulti(codes.map(normalizeCode));
-  const res=await fetch(url,{cache:'no-store'});
+  const res=await __fetch(url,{cache:'no-store'});
   if(!res.ok) throw new Error('HTTP '+res.status);
   const j=await res.json();
   const priceKey=($('#priceKey').value||'price').trim();
@@ -345,7 +375,7 @@ async function fetchPricesSingle(codes){
   const priceKey=($('#priceKey').value||'price').trim();
   const results=await Promise.allSettled(codes.map(async code=>{
     const url=buildUrlSingle(normalizeCode(code));
-    const res=await fetch(url,{cache:'no-store'});
+    const res=await __fetch(url,{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const j=await res.json();
     const price=Number(getByPath(j,priceKey))||Number(j.price)||Number(j.last)||Number(j?.data?.price)||0;
