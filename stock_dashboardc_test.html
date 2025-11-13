@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -335,11 +335,11 @@ function updateProfits(){
 }
 
 function buildUrlMulti(codes){
-  const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
-  const tpl = '/api/prices?codes={codes}';
-  const path=tpl.replace('{codes}', encodeURIComponent(codes.join(',')));
-  return base + path + '&t=' + Date.now();     // ← 추가
+  var base=(document.getElementById('apiBase').value||'').trim().replace(/\/$/,'');
+  var path='/api/prices?codes='+encodeURIComponent(codes.join(','));
+  return base+path+'&t='+Date.now();
 }
+	
 function buildUrlSingle(code){
   const base=($('#apiBase').value||'').trim().replace(/\/$/,'');
   const tpl = '/api/price?{codeParam}={code}';
@@ -361,31 +361,66 @@ async function fetchPricesAuto(codes){
     setStatus(err.message||'오류', false);
   }
 }
+// ② 멀티 호출 + 응답 파싱/매핑 보강
 async function fetchPricesMulti(codes){
   saveSettings();
-  const url=buildUrlMulti(codes.map(normalizeCode));
-  const res=await __fetch(url,{cache:'no-store'});
+
+  // 요청
+  var url=buildUrlMulti(codes.map(normalizeCode));
+  var res=await __fetch(url,{cache:'no-store'});
   if(!res.ok) throw new Error('HTTP '+res.status);
-  const j=await res.json();
-  const priceKey=($('#priceKey').value||'price').trim();
-  const codeParam=($('#codeParam').value||'code').trim();
-  const arr=Array.isArray(j)?j:(j.data||j.results||[]);
-  arr.forEach(p=>{
-    const codeRaw = String(p[codeParam]||p.code||p.symbol||p.ticker||'');
-    const code    = normKey(codeRaw);
-    const price   = Number(getByPath(p,priceKey))||Number(p.price)||Number(p.last)||0;
-    rows.forEach(row=>{
-      if (normKey(row.code) === code) { row.cur = price || row.cur || 0; }
-    });
+  var j=await res.json();
+
+  // 응답에서 배열만 어떻게든 꺼내기
+  var arr=[];
+  if (Array.isArray(j)) arr=j;
+  else if (Array.isArray(j.data)) arr=j.data;
+  else if (j && j.data && Array.isArray(j.data.data)) arr=j.data.data;
+  else if (Array.isArray(j.results)) arr=j.results;
+  else if (j && typeof j==='object') {
+    // 객체-사전형으로 떨어지는 변종도 흡수
+    Object.keys(j).forEach(k=>{ if(Array.isArray(j[k])) arr=arr.concat(j[k]); });
+  }
+
+  // 코드/가격 키
+  var priceKey=(document.getElementById('priceKey').value||'price').trim();
+  var codeKey =(document.getElementById('codeParam').value||'code').trim();
+
+  // 코드 → 가격 맵
+  var priceMap=new Map();
+  arr.forEach(function(p){
+    var raw = p && (p[codeKey] || p.code || p.symbol || p.ticker || p.cd || '');
+    var code= normKey(raw);
+    var price = Number(getByPath(p, priceKey))
+             || Number(p && p.price)
+             || Number(p && p.last)
+             || Number(p && p.nv)   // 네이버 nv
+             || 0;
+    if(code) priceMap.set(code, price);
+  });
+
+  // rows 반영(들어온 것만 업데이트, 0도 값으로 인정)
+  rows.forEach(function(row){
+    var key = normKey(row.code);
+    if (priceMap.has(key)) {
+      var v = priceMap.get(key);
+      row.cur = (typeof v==='number') ? v : Number(v)||0;
+    }
   });
   saveRows();
-  $$('#tbody tr').forEach((tr,i)=>{
-    const inp=tr.querySelector('.cur');
-    if(inp) inp.value = rows[i].cur?fmt(rows[i].cur):'';
+
+  // 화면 갱신
+  var trs=document.querySelectorAll('#tbody tr');
+  trs.forEach(function(tr,i){
+    var inp=tr.querySelector('.cur');
+    if(!inp) return;
+    var v=rows[i] && rows[i].cur;
+    inp.value = v ? fmt(v) : '';
     adjustStepForRow(tr);
   });
   updateProfits();
 }
+
 async function fetchPricesSingle(codes){
   saveSettings();
   const priceKey=($('#priceKey').value||'price').trim();
