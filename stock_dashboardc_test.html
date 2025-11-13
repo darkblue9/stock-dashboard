@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>8주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -424,6 +424,21 @@ async function fetchPricesMulti(codes){
 
   updateProfits();
   setStatus('OK', true);
+    updateProfits();
+  setStatus('OK', true);
+
+  // --- UI 강제 리렌더 ---
+  if (typeof render === 'function') {
+    queueMicrotask(() => render());       // 다음 프레임에서 전체 테이블 다시 칠함
+  } else {
+    // 혹시 render가 없다면 현재가 칸만 직접 칠하기(폴백)
+    document.querySelectorAll('#tbody tr').forEach((tr, i) => {
+      const v = rows[i]?.cur;
+      const inp = tr.querySelector('input.cur, input[name="cur"], input[data-col="cur"]');
+      if (!inp) return;
+      inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
+    });
+  }
 }
 
 // 단건: /api/price?code=...
@@ -471,6 +486,22 @@ async function fetchPricesSingle(codes){
 
   updateProfits();
   setStatus('OK', true);
+    updateProfits();
+  setStatus('OK', true);
+
+  // --- UI 강제 리렌더 ---
+  if (typeof render === 'function') {
+    queueMicrotask(() => render());       // 다음 프레임에서 전체 테이블 다시 칠함
+  } else {
+    // 혹시 render가 없다면 현재가 칸만 직접 칠하기(폴백)
+    document.querySelectorAll('#tbody tr').forEach((tr, i) => {
+      const v = rows[i]?.cur;
+      const inp = tr.querySelector('input.cur, input[name="cur"], input[data-col="cur"]');
+      if (!inp) return;
+      inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
+    });
+  }
+
 }
 
 
