@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>2주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>3주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -238,7 +238,8 @@ function normKey(c){
 
 /* step 동적 조절 */
 function adjustStepForRow(tr){
-  const curVal=toNum(tr.querySelector('.cur')?.value);
+  const _curEl = tr.querySelector('.cur');
+  const _curEl = tr.querySelector('.cur');
   const step=curVal>=100000?500:100;
   tr.querySelectorAll('.utarget,.ltarget').forEach(inp=>{ if(inp) inp.step=step; });
 }
@@ -288,6 +289,10 @@ function render(){
 function applyRow(i,tr,live){
   const r=rows[i]||(rows[i]={});
   const get=(sel)=> (tr.querySelector(sel)?.value || '').trim();
+  const get=(sel)=> {
+	  var el = tr.querySelector(sel);
+	  return ((el ? el.value : '')||'').trim();
+  };
   r.code=get('.code'); r.name=get('.name');
   r.avg=toNum(get('.avg')); r.qty=toNum(get('.qty'));
   r.cur=toNum(get('.cur')); r.fix=toNum(get('.fix'));
@@ -386,7 +391,11 @@ async function fetchPricesSingle(codes){
     const res=await __fetch(url,{cache:'no-store'});
     if(!res.ok) throw new Error('HTTP '+res.status);
     const j=await res.json();
-    const price=Number(getByPath(j,priceKey))||Number(j.price)||Number(j.last)||Number(j?.data?.price)||0;
+    const price = Number(getByPath(j,priceKey))
+	  || Number(j && j.price)
+	  || Number(j && j.price)
+	  || Number(j && j.data && j.data.price)
+      || 0;
     return { code: normKey(code), price };
   }));
   results.forEach(r=>{
