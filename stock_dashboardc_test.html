@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>6주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>7주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -361,98 +361,118 @@ async function fetchPricesAuto(codes){
     setStatus(err.message||'오류', false);
   }
 }
-// ② 멀티 호출 + 응답 파싱/매핑 보강
+	
+// 멀티: /api/prices?codes=...  (워커/로컬 모두 호환)
 async function fetchPricesMulti(codes){
   saveSettings();
 
-  // 요청
-  var url=buildUrlMulti(codes.map(normalizeCode));
-  var res=await __fetch(url,{cache:'no-store'});
-  if(!res.ok) throw new Error('HTTP '+res.status);
-  var j=await res.json();
+  // 1) URL
+  const url = buildUrlMulti(codes.map(normalizeCode));
 
-  // 응답에서 배열만 어떻게든 꺼내기
-  var arr=[];
-  if (Array.isArray(j)) arr=j;
-  else if (Array.isArray(j.data)) arr=j.data;
-  else if (j && j.data && Array.isArray(j.data.data)) arr=j.data.data;
-  else if (Array.isArray(j.results)) arr=j.results;
-  else if (j && typeof j==='object') {
-    // 객체-사전형으로 떨어지는 변종도 흡수
-    Object.keys(j).forEach(k=>{ if(Array.isArray(j[k])) arr=arr.concat(j[k]); });
+  // 2) 호출 (모바일 안전: cors/omit + no-store)
+  const res = await __fetch(url, { cache: 'no-store' });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+
+  // 3) 응답 파싱(모든 변종 흡수)
+  const j = await res.json();
+  let arr = [];
+  if (Array.isArray(j)) arr = j;
+  else if (Array.isArray(j.data)) arr = j.data;
+  else if (j && j.data && Array.isArray(j.data.data)) arr = j.data.data;
+  else if (Array.isArray(j.results)) arr = j.results;
+  else if (j && typeof j === 'object') {
+    // 객체 사전형(키→배열)도 펼쳐서 합침
+    Object.keys(j).forEach(k => { if (Array.isArray(j[k])) arr = arr.concat(j[k]); });
   }
 
-  // 코드/가격 키
-  var priceKey=(document.getElementById('priceKey').value||'price').trim();
-  var codeKey =(document.getElementById('codeParam').value||'code').trim();
+  // 4) 코드/가격 꺼내기(키 자동 추론)
+  const priceKey = ($('#priceKey').value || 'price').trim();
+  const codeKey  = ($('#codeParam').value || 'code').trim();
 
-  // 코드 → 가격 맵
-  var priceMap=new Map();
-  arr.forEach(function(p){
-    var raw = p && (p[codeKey] || p.code || p.symbol || p.ticker || p.cd || '');
-    var code= normKey(raw);
-    var price = Number(getByPath(p, priceKey))
-             || Number(p && p.price)
-             || Number(p && p.last)
-             || Number(p && p.nv)   // 네이버 nv
-             || 0;
-    if(code) priceMap.set(code, price);
+  const priceMap = new Map();
+  arr.forEach(p => {
+    const rawCode =
+      (p && (p[codeKey] || p.code || p.symbol || p.ticker || p.cd)) || '';
+    const key = normKey(rawCode);             // '005930' 통일
+    const price =
+      Number(getByPath(p, priceKey)) ||
+      Number(p && p.price) ||
+      Number(p && p.last) ||
+      Number(p && p.nv) ||                    // 네이버 필드
+      0;
+    if (key) priceMap.set(key, price);
   });
 
-  // rows 반영(들어온 것만 업데이트, 0도 값으로 인정)
-  rows.forEach(function(row){
-    var key = normKey(row.code);
+  // 5) rows 반영(들어온 것만 업데이트, 0도 값으로 인정)
+  rows.forEach(row => {
+    const key = normKey(row.code);
     if (priceMap.has(key)) {
-      var v = priceMap.get(key);
-      row.cur = (typeof v==='number') ? v : Number(v)||0;
+      const v = priceMap.get(key);
+      row.cur = (typeof v === 'number') ? v : (Number(v) || 0);
     }
   });
   saveRows();
 
-  // 화면 갱신
-  var trs=document.querySelectorAll('#tbody tr');
-  trs.forEach(function(tr,i){
-    var inp=tr.querySelector('.cur');
-    if(!inp) return;
-    var v=rows[i] && rows[i].cur;
-    inp.value = v ? fmt(v) : '';
+  // 6) 화면 값 채우기
+  $$('#tbody tr').forEach((tr, i) => {
+    const inp = tr.querySelector('.cur');
+    if (!inp) return;
+    const v = rows[i] && rows[i].cur;
+    inp.value = (v || v === 0) ? (v ? fmt(v) : '') : '';
     adjustStepForRow(tr);
   });
+
   updateProfits();
+  setStatus('OK', true);
 }
 
+// 단건: /api/price?code=...
 async function fetchPricesSingle(codes){
   saveSettings();
-  const priceKey=($('#priceKey').value||'price').trim();
-	
-  const results = await Promise.allSettled(codes.map(async code=>{
-    const url = buildUrlSingle(normalizeCode(code));
-    const res=await __fetch(url,{cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const j=await res.json();
-    const price = Number(getByPath(j,priceKey))
-	  || Number(j && j.price)
-	  || Number(j && j.price)
-	  || Number(j && j.data && j.data.price)
-      || 0;
-    return { code: normKey(code), price };
-  }));
-  results.forEach(r=>{
+  const priceKey = ($('#priceKey').value || 'price').trim();
+
+  const results = await Promise.allSettled(
+    codes.map(async (code) => {
+      const url = buildUrlSingle(normalizeCode(code));
+      const res = await __fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const j = await res.json();
+
+      const price =
+        Number(getByPath(j, priceKey)) ||
+        Number(j && j.price) ||
+        Number(j && j.data && j.data.price) ||
+        0;
+
+      return { code: normKey(code), price };
+    })
+  );
+
+  results.forEach(r => {
     if (r.status === 'fulfilled') {
       const { code, price } = r.value;
-      rows.forEach(row=>{
-        if (normKey(row.code) === code) { row.cur = price || row.cur || 0; }
+      rows.forEach(row => {
+        if (normKey(row.code) === code) {
+          row.cur = (typeof price === 'number') ? price : (Number(price) || row.cur || 0);
+        }
       });
     }
   });
+
   saveRows();
-  $$('#tbody tr').forEach((tr,i)=>{
-    const inp=tr.querySelector('.cur');
-    if(inp) inp.value = rows[i].cur?fmt(rows[i].cur):'';
-    adjustStepForRow(tr);
+  $$('#tbody tr').forEach((tr, i) => {
+    const inp = tr.querySelector('.cur');
+    if (inp) {
+      const v = rows[i]?.cur;
+      inp.value = v ? fmt(v) : '';
+      adjustStepForRow(tr);
+    }
   });
+
   updateProfits();
+  setStatus('OK', true);
 }
+
 
 let timerId=null;
 function tick(){
