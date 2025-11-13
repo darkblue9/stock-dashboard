@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>4주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>5주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -238,12 +238,10 @@ function normKey(c){
 
 /* step 동적 조절 */
 function adjustStepForRow(tr){
-  const el = tr.querySelector('.cur');
-  const curVal = toNum(el && el.value);           // "12,300" → 12300
-  const step = curVal >= 100000 ? 500 : 100;      // 10만 이상이면 500, 아니면 100
-  tr.querySelectorAll('.utarget,.ltarget').forEach(inp=>{
-    if (inp) inp.step = step;
-  });
+  const curEl  = tr.querySelector('.cur');
+  const curVal = Number(String(curEl?.value || '').replace(/[^\d.-]/g,'')) || 0;
+  const step   = curVal >= 100000 ? 500 : 100;   // 10만 이상이면 500틱, 아니면 100틱
+  tr.querySelectorAll('.utarget,.ltarget').forEach(inp => { if (inp) inp.step = step; });
 }
 function adjustAllSteps(){ $$('#tbody tr').forEach(adjustStepForRow); }
 
@@ -289,26 +287,31 @@ function render(){
 }
 
 function applyRow(i,tr,live){
-  const r=rows[i]||(rows[i]={});
+  const r = rows[i] || (rows[i] = {});
   const get = (sel) => {
     const el = tr.querySelector(sel);
     return ((el ? el.value : '') || '').trim();
   };
-  r.code=get('.code'); r.name=get('.name');
-  r.avg=toNum(get('.avg')); r.qty=toNum(get('.qty'));
-  r.cur=toNum(get('.cur')); r.fix=toNum(get('.fix'));
-  r.utarget=toNum(get('.utarget')); r.ltarget=toNum(get('.ltarget'));
-  r.inv=(r.avg||0)*(r.qty||0);
-  tr.querySelector('.inv').value=fmt(r.inv||0);
+  r.code    = get('.code');   r.name   = get('.name');
+  r.avg     = toNum(get('.avg'));
+  r.qty     = toNum(get('.qty'));
+  r.cur     = toNum(get('.cur'));
+  r.fix     = toNum(get('.fix'));
+  r.utarget = toNum(get('.utarget'));
+  r.ltarget = toNum(get('.ltarget'));
+  r.inv     = (r.avg||0) * (r.qty||0);
+
+  tr.querySelector('.inv').value = fmt(r.inv || 0);
   if(!live){
-    tr.querySelector('.avg').value=r.avg?fmt(r.avg):'';
-    tr.querySelector('.cur').value=r.cur?fmt(r.cur):'';
-    tr.querySelector('.fix').value=r.fix?fmt(r.fix):'';
+    tr.querySelector('.avg').value = r.avg ? fmt(r.avg) : '';
+    tr.querySelector('.cur').value = r.cur ? fmt(r.cur) : '';
+    tr.querySelector('.fix').value = r.fix ? fmt(r.fix) : '';
   }
   adjustStepForRow(tr);
   saveRows();
   updateProfits();
 }
+
 
 function updateProfits(){
   let total=0;
