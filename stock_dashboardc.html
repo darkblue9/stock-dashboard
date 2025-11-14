@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v4 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v5 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -125,6 +125,8 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
   <button id="btnSortEmptyQty">정렬(주수없음)</button>
   <button id="btnSetTargets">목표가 세팅</button>
   <span id="status" class="status">상태: 대기</span>
+  <span id="sppp" class="sppp">&nbsp;&nbsp;&nbsp;&nbsp;</span>
+  <span id="stmsg" class="stmsg">&nbsp;</span>
 </div>
 
 <table id="grid">
@@ -525,6 +527,11 @@ function setStatus(text, ok){
   const s=$('#status');
   if(s){ s.textContent='상태: '+text; s.style.color=ok?'green':'red'; }
 }
+function setSTmsg(text, ok){
+  const s=$('#stmsg');
+  var now = new Date();
+  if(s){ s.textContent='msg : '+text + '  ' + now.toString(); s.style.color=ok?'blue':'red'; }
+}
 
 /* 텍스트로 복사 */
 function showToast(msg){
@@ -632,6 +639,8 @@ async function cloudSave(){
 
     if(!res.ok) throw new Error("HTTP "+res.status);
     setStatus("클라우드 저장 완료", true);
+	/* setSTmsg("클라우드 저장 완료", true); */
+	/* stmag.innerHTML("클라우드 저장 완료(" + now.toString()) + ")"; */
     alert("클라우드 저장 완료");
   }catch(e){ console.error(e); setStatus("클라우드 저장 실패", false); alert("실패: "+e.message); }
 }
