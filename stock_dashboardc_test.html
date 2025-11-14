@@ -639,9 +639,9 @@ async function cloudSave(){
 
     if(!res.ok) throw new Error("HTTP "+res.status);
     setStatus("클라우드 저장 완료", true);
-	setSTmsg("클라우드 저장 완료", true);
+	/* setSTmsg("클라우드 저장 완료", true); */
 	/* stmag.innerHTML("클라우드 저장 완료(" + now.toString()) + ")"; */
-    /* alert("클라우드 저장 완료"); */
+    alert("클라우드 저장 완료");
   }catch(e){ console.error(e); setStatus("클라우드 저장 실패", false); alert("실패: "+e.message); }
 }
 async function cloudLoad(){
