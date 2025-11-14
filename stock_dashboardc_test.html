@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>3 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>4 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -529,6 +529,7 @@ function setStatus(text, ok){
 }
 function setSTmsg(text, ok){
   const s=$('#stmsg');
+  var now = new Date();
   if(s){ s.textContent='msg : '+text + now.toString(); s.style.color=ok?'blue':'red'; }
 }
 
