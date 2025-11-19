@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>5 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v6 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -50,6 +50,7 @@ td input[readonly]{background:#f9f9f9}
 col.col-no { width: 44px; }     /* 필요하면 36~52px로 조절 */
 td.row-no  { text-align:center; color:#666; }
 col.col-code { width: 70px; }  /* 코드 컬럼폭 */
+col.col-summary { width: 40px; }   /* 요약 컬럼폭 */
 col.col-avg { width: 80px; }   /*  매수가 컬럼폭 */
 col.col-qty { width: 40px; }   /*  주수 컬럼폭 */
 col.col-inv { width: 90px; }   /*  투입금액 컬럼폭 */
@@ -133,6 +134,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
   <colgroup>
     <col class="col-no">
     <col class="col-code">
+	<col class="col-summary">
     <col class="col-name">
     <col class="col-avg">
     <col class="col-qty">
@@ -146,7 +148,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th><th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
+    <th>No</th><th>코드</th><th>요약</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금액</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익(원)</th><th>손익(%)</th><th>▲▼/삭제</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -254,6 +256,7 @@ function render(){
     tr.innerHTML=`
 	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}" style="width: 60px; text-align:right;"></td>
+	  <td><input class="summary" value="${(r.name || '').trim().charAt(0) || ''}" readonly style="width: 30px; text-align:center;"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 60px; text-align:right;"></td>
       <td><input class="qty" value="${r.qty||''}" style="width: 30px; text-align:right;"></td>
@@ -294,7 +297,14 @@ function applyRow(i,tr,live){
     const el = tr.querySelector(sel);
     return ((el ? el.value : '') || '').trim();
   };
-  r.code    = get('.code');   r.name   = get('.name');
+  r.code    = get('.code');  
+  const nameVal = get('.name');
+  r.name = nameVal;
+  const summaryInput = tr.querySelector('.summary');
+  if (summaryInput) {
+    const firstChar = nameVal ? nameVal.trim().charAt(0) : '';
+    summaryInput.value = firstChar;
+  }
   r.avg     = toNum(get('.avg'));
   r.qty     = toNum(get('.qty'));
   r.cur     = toNum(get('.cur'));
@@ -331,6 +341,25 @@ function updateProfits(){
     const dn=(r.ltarget||0)>0 && (r.cur||0)<=r.ltarget;
     utDot.className='dot ut-dot'+(up?' red blink-red-dot':'');
     ltDot.className='dot lt-dot'+(dn?' blue blink-blue-dot':'');
+	/* ===== 여기부터 추가: 주수/매도가 조건부 색칠 ===== */
+    const qtyVal = Number(r.qty || 0);
+    const hasQty = qtyVal > 0;
+    const hasFix = !!r.fix && Number(r.fix) !== 0;
+
+    // 매도가 input과 td 찾기
+    const fixInput = tr.querySelector('.fix');
+    const fixTd = fixInput ? fixInput.closest('td') : null;
+
+    if (fixTd) {
+      if (hasQty && !hasFix) {
+        // 주수 있음 + 매도가 없음 → 회색 배경
+        fixTd.style.backgroundColor = '#d9d9d9';
+      } else {
+        // 조건 안 맞으면 원래대로
+        fixTd.style.backgroundColor = '';
+      }
+    }
+    /* ===== 추가 끝 ===== */
   });
   const t=$('#totalProfit'); if(t){ t.textContent=fmt(Math.round(total)); t.className=(total>=0?'profit-pos':'profit-neg'); }
   saveRows();
