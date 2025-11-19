@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v9 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v10 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -99,7 +99,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 } */  /* 지금 83px에서 +3px */
 
 /* 4) 셀 자체 패딩도 더 타이트하게 (원하면 유지) */
-#grid td { padding: 2px 3px; }
+#grid td { padding: 5px 3px; }
 	
 </style>
 </head>
@@ -280,7 +280,12 @@ function render(){
       inp.addEventListener('blur',upd);
       inp.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } });
     });
-    tr.querySelector('.del').onclick=()=>{ rows.splice(i,1); saveRows(); render(); };
+    tr.querySelector('.del').onclick=()=>{ 
+		if (!confirm("정말 삭제하시겠습니까?")) return;  // ← 확인창 추가
+		rows.splice(i,1); 
+		saveRows(); 
+		render(); 
+	};
     const upBtn = tr.querySelector('.up');
     const downBtn = tr.querySelector('.down');
     if(upBtn){ upBtn.onclick=()=>{ if(i>0){ [rows[i-1],rows[i]]=[rows[i],rows[i-1]]; saveRows(); render(); } }; }
