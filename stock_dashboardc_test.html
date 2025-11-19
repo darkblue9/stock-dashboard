@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v7 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v8 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -360,6 +360,17 @@ function updateProfits(){
       }
     }
     /* ===== 추가 끝 ===== */
+	/* ===== 현재가 컬럼 색칠 ===== */
+	const curInput = tr.querySelector('.cur');
+	const curTd = curInput ? curInput.closest('td') : null;
+
+	if (curTd) {
+	  if (hasQty && !hasFix) {
+		curTd.style.backgroundColor = '#dbeeee';   // 운영 중 종목 강조
+	  } else {
+		curTd.style.backgroundColor = '';
+	  }
+	}
   });
   const t=$('#totalProfit'); if(t){ t.textContent=fmt(Math.round(total)); t.className=(total>=0?'profit-pos':'profit-neg'); }
   saveRows();
