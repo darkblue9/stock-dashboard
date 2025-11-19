@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v6 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v7 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -256,7 +256,7 @@ function render(){
     tr.innerHTML=`
 	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}" style="width: 60px; text-align:right;"></td>
-	  <td><input class="summary" value="${(r.name || '').trim().charAt(0) || ''}" readonly style="width: 30px; text-align:center;"></td>
+	  <td><input class="summary" value="${(r.name || '').trim().substring(0, 2)}" readonly style="width: 30px; text-align:center;"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 60px; text-align:right;"></td>
       <td><input class="qty" value="${r.qty||''}" style="width: 30px; text-align:right;"></td>
@@ -302,7 +302,7 @@ function applyRow(i,tr,live){
   r.name = nameVal;
   const summaryInput = tr.querySelector('.summary');
   if (summaryInput) {
-    const firstChar = nameVal ? nameVal.trim().charAt(0) : '';
+    const firstChar = nameVal ? nameVal.trim().substring(0, 2) : '';
     summaryInput.value = firstChar;
   }
   r.avg     = toNum(get('.avg'));
@@ -737,7 +737,7 @@ updateProfits = function(){
       const code = rows[i]?.code||'';
       const cur = rows[i]?.cur||0;
       if(code && cur){ addSnapIfNeeded(code, cur); }
-      const curCell = tr.children[7];
+      const curCell = tr.children[9];
       if(curCell){
         const old = curCell.querySelector('.delta-badges');
         if(old) old.remove();
