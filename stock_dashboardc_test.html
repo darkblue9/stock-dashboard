@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v11 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v12 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -908,24 +908,70 @@ document.addEventListener('click', function (ev) {
 </script>
 
 <script>
+/*
+  "정렬(주수없음)" 버튼 정렬 규칙
 
+  1) 맨 위: 매도가(fix)에 값이 있는 행들 (순서는 그대로 유지)
+  2) 그 다음: 주수(qty) > 0 이고 매도가가 비어있는 행들
+     -> 손익(원) 기준 "내림차순" 정렬 (금액이 큰 게 위로 오게)
+  3) 나머지: 이름(name) 오름차순 정렬
+*/
 document.getElementById('btnSortEmptyQty').addEventListener('click', () => {
-  // 주수 컬럼 기준 분리
-  const filled = rows.filter(r => r.qty && Number(r.qty) > 0);
-  const empty = rows.filter(r => !r.qty || Number(r.qty) <= 0);
+  if (!Array.isArray(rows)) return;
 
-  // 종목 이름 기준 오름차순 정렬 (빈 항목만)
-  empty.sort((a, b) => {
+  const withFix = [];       // 1. 매도가 값 있는 행들
+  const withQtyNoFix = [];  // 2. 주수 > 0 && 매도가 없음
+  const others = [];        // 3. 나머지
+
+  rows.forEach(r => {
+    const qty = Number(r.qty || 0);
+    const fix = Number(r.fix || 0);
+    const hasQty = qty > 0;
+    const hasFix = !!fix;
+
+    if (hasFix) {
+      withFix.push(r);
+    } else if (hasQty) {
+      withQtyNoFix.push(r);
+    } else {
+      others.push(r);
+    }
+  });
+
+  // 2단계 그룹: 손익(원) 기준 내림차순 (금액 큰 게 위)
+  const getProfitWon = (r) => {
+    const avg = Number(r.avg || 0);
+    const cur = Number(r.cur || 0);
+    const fix = Number(r.fix || 0);
+    const qty = Number(r.qty || 0);
+    const result = calcProfit(avg, cur, fix, qty);  // 이미 위에서 쓰던 함수
+    return result && typeof result.won === 'number' ? result.won : 0;
+  };
+
+  withQtyNoFix.sort((a, b) => getProfitWon(b) - getProfitWon(a));
+
+  // 3단계 그룹: 이름 오름차순
+  others.sort((a, b) => {
     const na = (a.name || '').trim();
     const nb = (b.name || '').trim();
     return na.localeCompare(nb, 'ko', { sensitivity: 'base' });
   });
 
-  // 합치고 렌더링
-  rows = [...filled, ...empty];
-  render();
-  paintQtyCells();// 렌더링 후 색상 다시 칠하기
+  // 최종 rows 재조합
+  rows = [...withFix, ...withQtyNoFix, ...others];
+
+  // 저장 + 렌더 + 색칠
+  if (typeof saveRows === 'function') saveRows();
+  if (typeof render === 'function') render();
+
+  if (typeof paintQtyCells === 'function') {
+    paintQtyCells();
+  } else if (typeof paintAllQty === 'function') {
+    paintAllQty();
+  }
 });
+
+/* 이하 부분은 기존 그대로 두면 됨 */
 
 document.addEventListener('input', (e)=>{
   const el = e.target && e.target.closest('.qty');
@@ -938,7 +984,9 @@ if (typeof render === 'function') {
   render = function(...args){
     const r = __origRender.apply(this, args);
     // 렌더가 DOM에 반영된 다음 프레임에 칠하기
-    queueMicrotask(paintAllQty);
+    queueMicrotask(() => {
+      if (typeof paintAllQty === 'function') paintAllQty();
+    });
     return r;
   };
 }
@@ -947,15 +995,17 @@ if (typeof render === 'function') {
 const tbody = document.querySelector('#tbody');
 if (tbody) {
   const mo = new MutationObserver((list)=>{
-    if (list.some(m=>m.type==='childList')) paintAllQty();
+    if (list.some(m=>m.type==='childList') && typeof paintAllQty === 'function') {
+      paintAllQty();
+    }
   });
   mo.observe(tbody, {childList:true});
 }
 
 // 초기 1회
-document.addEventListener('DOMContentLoaded', paintAllQty);
-
-
+document.addEventListener('DOMContentLoaded', () => {
+  if (typeof paintAllQty === 'function') paintAllQty();
+});
 </script>
 
 <script>
