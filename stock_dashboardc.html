@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v10 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v11 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -1078,9 +1078,13 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
 </script>
 
 <script>
-/* 목표가 세팅: 현재가 기준 상/하목표 일괄 세팅
-   - 현재가 ≥ 100,000 → +3,000 / -3,000
-   - 현재가 < 100,000  → +300  / -300
+/* 목표가 세팅
+   - 주수(qty) > 0  인 행:
+       상목표 = ((매수가*주수)+(매수가*주수)*0.26%+10000)/주수
+       하목표 = ((매수가*주수)+(매수가*주수)*0.26%-10000)/주수
+   - 주수 없거나 0인 행:
+       기존처럼 현재가 기준 상/하목표 세팅
+       (현재가 ≥ 100,000 → +3,000 / -3,000, 그 외 +300 / -300)
 */
 (function () {
   const btn = document.getElementById('btnSetTargets');
@@ -1091,8 +1095,8 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
   // input 값 세팅 + 'input' 이벤트 강제 발생(내부 rows 동기화)
   function setInputAndCommit(input, valueNumber) {
     if (!input) return false;
-    input.value = String(valueNumber);              // 숫자 형태로 넣고
-    input.dispatchEvent(new Event('input', { bubbles: true }));  // rows 갱신 트리거
+    input.value = String(Math.round(valueNumber));   // 소수점 제거
+    input.dispatchEvent(new Event('input', { bubbles: true }));  // rows 갱신
     return true;
   }
 
@@ -1101,15 +1105,11 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
     let changed = 0;
 
     trs.forEach(tr => {
+      const avgInput = tr.querySelector('.avg');
+      const qtyInput = tr.querySelector('.qty');
       const curInput = tr.querySelector('.cur');
       if (!curInput) return;
 
-      const cur = parseNum(curInput.value);
-      if (!cur) return;
-
-      const delta = (cur >= 100000) ? 3000 : 300;
-
-      // 현재가 td → 왼쪽(하목표) → 그 왼쪽(상목표)
       const tdCur  = curInput.closest('td');
       const tdLow  = tdCur && tdCur.previousElementSibling;
       const tdHigh = tdLow && tdLow.previousElementSibling;
@@ -1117,7 +1117,31 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
       const lowI   = tdLow  && tdLow.querySelector('input');
       const highI  = tdHigh && tdHigh.querySelector('input');
 
-      // 숫자 그대로 넣고 input 이벤트로 내부 상태(rows)까지 갱신
+      if (!lowI || !highI) return;
+
+      const avg = parseNum(avgInput && avgInput.value);
+      const qty = parseNum(qtyInput && qtyInput.value);
+
+      // 1) 주수 > 0 이고 매수가 > 0 인 경우: 매수가·주수 기준으로 상/하목표 계산
+      if (qty > 0 && avg > 0) {
+        const buyAmt = avg * qty;              // 매수금액
+        const fee    = buyAmt * 0.0026;        // 0.26% 수수료/세금 합
+        const upper  = (buyAmt + fee + 10000) / qty;  // +1만원
+        const lower  = (buyAmt + fee - 10000) / qty;  // -1만원
+
+        const okHigh = setInputAndCommit(highI, upper);
+        const okLow  = setInputAndCommit(lowI,  lower);
+
+        if (okHigh || okLow) changed++;
+        return;   // 이 행은 여기서 끝, 아래 현재가 로직은 타지 않음
+      }
+
+      // 2) 주수가 없거나 0인 경우: 기존처럼 현재가 기준 상/하목표 세팅
+      const cur = parseNum(curInput.value);
+      if (!cur) return;
+
+      const delta = (cur >= 100000) ? 3000 : 300;
+
       const okHigh = setInputAndCommit(highI, cur + delta);
       const okLow  = setInputAndCommit(lowI,  Math.max(0, cur - delta));
 
@@ -1126,13 +1150,13 @@ document.addEventListener('DOMContentLoaded', paintAllQty);
 
     // 계산/표시 갱신
     if (typeof updateProfits === 'function') updateProfits();
-    // (원하면 saveRows도)
     if (typeof saveRows === 'function') saveRows();
 
     alert(`목표가 세팅 완료: ${changed}개 행`);
   });
 })();
 </script>
+
 
 </body>
 </html>
