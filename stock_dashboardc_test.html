@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v12 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v13 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -1135,6 +1135,7 @@ document.addEventListener('DOMContentLoaded', () => {
    - 주수 없거나 0인 행:
        기존처럼 현재가 기준 상/하목표 세팅
        (현재가 ≥ 100,000 → +3,000 / -3,000, 그 외 +300 / -300)
+   - **매도가(fix)에 값이 있으면** 상목표/하목표는 건드리지 않음
 */
 (function () {
   const btn = document.getElementById('btnSetTargets');
@@ -1158,7 +1159,15 @@ document.addEventListener('DOMContentLoaded', () => {
       const avgInput = tr.querySelector('.avg');
       const qtyInput = tr.querySelector('.qty');
       const curInput = tr.querySelector('.cur');
+      const fixInput = tr.querySelector('.fix');
+
       if (!curInput) return;
+
+      // ★ 매도가(fix)에 값이 있으면 이 행은 스킵 (목표가 유지)
+      const fix = parseNum(fixInput && fixInput.value);
+      if (fix > 0) {
+        return;   // 상목표/하목표 아무 것도 안 건드림
+      }
 
       const tdCur  = curInput.closest('td');
       const tdLow  = tdCur && tdCur.previousElementSibling;
@@ -1183,10 +1192,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const okLow  = setInputAndCommit(lowI,  lower);
 
         if (okHigh || okLow) changed++;
-        return;   // 이 행은 여기서 끝, 아래 현재가 로직은 타지 않음
+        return;   // 이 행은 여기서 끝
       }
 
-      // 2) 주수가 없거나 0인 경우: 기존처럼 현재가 기준 상/하목표 세팅
+      // 2) 주수가 없거나 0인 경우: 현재가 기준 상/하목표 세팅
       const cur = parseNum(curInput.value);
       if (!cur) return;
 
@@ -1206,6 +1215,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 })();
 </script>
+
 
 
 </body>
