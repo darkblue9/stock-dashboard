@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.5 (정렬 로직 개선)</title>
+<title>마녀의 주식 대시보드 v4.6 (전체 데이터 복사)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -571,7 +571,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // [수정된 부분] 정렬 (매도 > 매수(손익) > 관망(이름))
+  // 정렬 (매도 > 매수(손익) > 관망(이름))
   $('#btnSortEmptyQty').addEventListener('click', () => {
     const groupSold = [];
     const groupActive = [];
@@ -581,36 +581,22 @@ document.addEventListener('DOMContentLoaded', () => {
       const q = r.qty || 0;
       const f = r.fix || 0;
       
-      // 1순위: 매도가가 있으면 (매도한 종목)
-      if(f > 0) {
-        groupSold.push(r);
-      } 
-      // 2순위: 주수가 있으면 (매수중인 종목)
-      else if(q > 0) {
-        groupActive.push(r);
-      } 
-      // 3순위: 나머지 (관망)
-      else {
-        groupWatch.push(r);
-      }
+      if(f > 0) { groupSold.push(r); } 
+      else if(q > 0) { groupActive.push(r); } 
+      else { groupWatch.push(r); }
     });
 
-    // 2순위(매수중) 정렬: 손익(원) 내림차순 (큰 게 위로)
     groupActive.sort((a,b) => {
       const pa = calcProfit(a.avg, a.cur, a.fix, a.qty).won;
       const pb = calcProfit(b.avg, b.cur, b.fix, b.qty).won;
       return pb - pa;
     });
 
-    // 3순위(관망) 정렬: 이름 오름차순
     groupWatch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
-    // 합치기
     rows = [...groupSold, ...groupActive, ...groupWatch];
-    
     saveRows();
     render();
-    // alert('정렬 완료: 매도 > 매수(수익순) > 관망(이름순)');
   });
 
   // 목표가 세팅
@@ -640,12 +626,36 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  // [수정된 부분] 전체 데이터 텍스트 복사 (엑셀용)
   $('#copyTxtBtn').addEventListener('click', () => {
-    const txt = rows.map(r => `${r.name}\t${r.cur}\t${r.qty||0}`).join('\n');
-    navigator.clipboard.writeText(txt).then(()=>alert('복사완료'));
+    const headers = ['구분', '코드', '이름', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '매도가', '손익', '수익률'];
+    
+    const lines = rows.map(r => {
+      // 필터와 상관없이 '모든 데이터'를 내보냄
+      const grp = r.group === 'long' ? '장투' : '단타';
+      const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+      
+      return [
+        grp,
+        r.code || '',
+        r.name || '',
+        r.avg || 0,
+        r.qty || 0,
+        (r.avg||0) * (r.qty||0),
+        r.utarget || 0,
+        r.ltarget || 0,
+        r.cur || 0,
+        r.fix || 0,
+        Math.round(won),
+        (pct||0).toFixed(2) + '%'
+      ].join('\t');
+    });
+
+    const txt = headers.join('\t') + '\n' + lines.join('\n');
+    navigator.clipboard.writeText(txt).then(()=>alert('전체 데이터 복사 완료! 스프레드시트에 붙여넣으세요.'));
   });
 
-  // 클라우드 관련
+  // 클라우드 저장
   const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
   const CLOUD_ID = "stock-dashboard-rows";
 
