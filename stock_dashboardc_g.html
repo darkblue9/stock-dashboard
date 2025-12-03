@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.4 (기존 목표가 로직 복원)</title>
+<title>마녀의 주식 대시보드 v4.5 (정렬 로직 개선)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -246,7 +246,7 @@ function render(){
     const grpClass = isLong ? 'grp-long' : 'grp-short';
     const grpText = isLong ? '장' : '단';
 
-    // 호가 단위 결정 (10만 이상 500원, 미만 100원) - 증감버튼용
+    // 호가 단위 결정
     const stepVal = (r.cur >= 100000) ? 500 : 100;
 
     tr.innerHTML=`
@@ -571,50 +571,66 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 정렬
+  // [수정된 부분] 정렬 (매도 > 매수(손익) > 관망(이름))
   $('#btnSortEmptyQty').addEventListener('click', () => {
-    rows.sort((a,b) => {
-      const qa = (a.qty||0), qb = (b.qty||0);
-      if(!!qa !== !!qb) return !!qb - !!qa;
-      if(qa && qb) {
-        const pa = calcProfit(a.avg, a.cur, a.fix, a.qty).won;
-        const pb = calcProfit(b.avg, b.cur, b.fix, b.qty).won;
-        return pb - pa;
+    const groupSold = [];
+    const groupActive = [];
+    const groupWatch = [];
+
+    rows.forEach(r => {
+      const q = r.qty || 0;
+      const f = r.fix || 0;
+      
+      // 1순위: 매도가가 있으면 (매도한 종목)
+      if(f > 0) {
+        groupSold.push(r);
+      } 
+      // 2순위: 주수가 있으면 (매수중인 종목)
+      else if(q > 0) {
+        groupActive.push(r);
+      } 
+      // 3순위: 나머지 (관망)
+      else {
+        groupWatch.push(r);
       }
-      return (a.name||'').localeCompare(b.name||'');
     });
+
+    // 2순위(매수중) 정렬: 손익(원) 내림차순 (큰 게 위로)
+    groupActive.sort((a,b) => {
+      const pa = calcProfit(a.avg, a.cur, a.fix, a.qty).won;
+      const pb = calcProfit(b.avg, b.cur, b.fix, b.qty).won;
+      return pb - pa;
+    });
+
+    // 3순위(관망) 정렬: 이름 오름차순
+    groupWatch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+
+    // 합치기
+    rows = [...groupSold, ...groupActive, ...groupWatch];
+    
     saveRows();
     render();
+    // alert('정렬 완료: 매도 > 매수(수익순) > 관망(이름순)');
   });
 
-  // 목표가 세팅 (User 요구사항 반영)
+  // 목표가 세팅
   $('#btnSetTargets').addEventListener('click', () => {
     let changed = 0;
     rows.forEach(r => {
-      // 1. 이미 매도한 종목(매도가 존재)은 계산 스킵
       if(r.fix > 0) return;
-
-      // 2. 보유 중인 종목 (매수가 > 0, 주수 > 0)
       if(r.qty > 0 && r.avg > 0) {
         const buyAmt = r.avg * r.qty;
-        const fee = buyAmt * 0.0026; // 수수료+세금 0.26%
-        
-        // 1만원 이득/손해 기준
+        const fee = buyAmt * 0.0026; 
         r.utarget = Math.round((buyAmt + fee + 10000) / r.qty);
         r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty);
         changed++;
-      } 
-      // 3. 관망 중인 종목 (주수 없음) -> 현재가 기준 +/- 설정
-      else if(!r.qty && r.cur > 0) {
-        // 10만원 이상이면 3000원 단위, 미만이면 300원 단위
+      } else if(!r.qty && r.cur > 0) {
         const delta = (r.cur >= 100000) ? 3000 : 300;
-        
         r.utarget = r.cur + delta;
         r.ltarget = Math.max(0, r.cur - delta);
         changed++;
       }
     });
-    
     if(changed > 0) {
       saveRows();
       render();
@@ -624,7 +640,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 복사
   $('#copyTxtBtn').addEventListener('click', () => {
     const txt = rows.map(r => `${r.name}\t${r.cur}\t${r.qty||0}`).join('\n');
     navigator.clipboard.writeText(txt).then(()=>alert('복사완료'));
