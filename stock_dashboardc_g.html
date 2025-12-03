@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.6 (전체 데이터 복사)</title>
+<title>마녀의 주식 대시보드 v4.7 (차트 팝업 크기 수정)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -158,12 +158,14 @@ col.col-act { width: 160px; }
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
-  <div style="background:#fff; width:90%; max-width:600px; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
-    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
+  <div style="background:#fff; width:90%; max-width:600px; max-height:85vh; display:flex; flex-direction:column; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+    <div style="display:flex; justify-content:space-between; margin-bottom:10px; flex-shrink:0;">
       <strong id="chartTitle">차트</strong>
       <button onclick="document.getElementById('chartModal').style.display='none'">닫기</button>
     </div>
-    <canvas id="histChart" style="width:100%; height:300px;"></canvas>
+    <div style="flex:1; min-height:0; overflow:hidden;">
+      <canvas id="histChart" style="width:100%; height:100%;"></canvas>
+    </div>
   </div>
 </div>
 
@@ -550,7 +552,10 @@ function showChart(code, name){
         pointRadius: 2
       }]
     },
-    options: { responsive: true, maintainAspectRatio: false }
+    options: { 
+      responsive: true, 
+      maintainAspectRatio: false 
+    }
   });
   
   $('#chartTitle').textContent = `${name} (${code})`;
@@ -626,12 +631,11 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // [수정된 부분] 전체 데이터 텍스트 복사 (엑셀용)
+  // 전체 데이터 텍스트 복사 (엑셀용)
   $('#copyTxtBtn').addEventListener('click', () => {
     const headers = ['구분', '코드', '이름', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '매도가', '손익', '수익률'];
     
     const lines = rows.map(r => {
-      // 필터와 상관없이 '모든 데이터'를 내보냄
       const grp = r.group === 'long' ? '장투' : '단타';
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       
