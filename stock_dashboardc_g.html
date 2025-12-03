@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.3 (버그 수정판)</title>
+<title>마녀의 주식 대시보드 v4.4 (기존 목표가 로직 복원)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -246,7 +246,9 @@ function render(){
     const grpClass = isLong ? 'grp-long' : 'grp-short';
     const grpText = isLong ? '장' : '단';
 
-    // target 필드에 number 타입 유지
+    // 호가 단위 결정 (10만 이상 500원, 미만 100원) - 증감버튼용
+    const stepVal = (r.cur >= 100000) ? 500 : 100;
+
     tr.innerHTML=`
       <td class="row-no">${i+1}</td>
       <td><button class="grp-btn ${grpClass}">${grpText}</button></td>
@@ -256,8 +258,8 @@ function render(){
       <td><input class="qty" value="${r.qty||''}"></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
       
-      <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" value="${r.utarget||''}"></div></td>
-      <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" value="${r.ltarget||''}"></div></td>
+      <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" step="${stepVal}" value="${r.utarget||''}"></div></td>
+      <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
       
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}">
@@ -291,8 +293,6 @@ function render(){
         updateRowCalculation(tr, rows[i]);
       });
       
-      // [수정된 부분] input type이 'number'일 때는 포맷팅(쉼표넣기)을 하지 않음
-      // 그래야 화살표 버튼 사용시 값이 사라지지 않음
       if(isNum && el.type !== 'number') {
         el.addEventListener('blur', ()=> el.value = rows[i][key] ? fmt(rows[i][key]) : '');
       }
@@ -587,21 +587,41 @@ document.addEventListener('DOMContentLoaded', () => {
     render();
   });
 
-  // 목표가 세팅
+  // 목표가 세팅 (User 요구사항 반영)
   $('#btnSetTargets').addEventListener('click', () => {
+    let changed = 0;
     rows.forEach(r => {
-      if(r.qty > 0 && !r.fix) {
+      // 1. 이미 매도한 종목(매도가 존재)은 계산 스킵
+      if(r.fix > 0) return;
+
+      // 2. 보유 중인 종목 (매수가 > 0, 주수 > 0)
+      if(r.qty > 0 && r.avg > 0) {
         const buyAmt = r.avg * r.qty;
-        const fee = buyAmt * 0.003; 
+        const fee = buyAmt * 0.0026; // 수수료+세금 0.26%
+        
+        // 1만원 이득/손해 기준
         r.utarget = Math.round((buyAmt + fee + 10000) / r.qty);
         r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty);
-      } else if(!r.qty && r.cur) {
-        r.utarget = Math.round(r.cur * 1.03);
-        r.ltarget = Math.round(r.cur * 0.97);
+        changed++;
+      } 
+      // 3. 관망 중인 종목 (주수 없음) -> 현재가 기준 +/- 설정
+      else if(!r.qty && r.cur > 0) {
+        // 10만원 이상이면 3000원 단위, 미만이면 300원 단위
+        const delta = (r.cur >= 100000) ? 3000 : 300;
+        
+        r.utarget = r.cur + delta;
+        r.ltarget = Math.max(0, r.cur - delta);
+        changed++;
       }
     });
-    saveRows();
-    render();
+    
+    if(changed > 0) {
+      saveRows();
+      render();
+      alert(`목표가 세팅 완료 (${changed}건)`);
+    } else {
+      alert('변경할 대상이 없습니다.');
+    }
   });
 
   // 복사
