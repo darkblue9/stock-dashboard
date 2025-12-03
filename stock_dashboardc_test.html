@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>v16 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
+<title>v17 주식 대시보드 v3.4h (동적 step 100/500 · 텍스트 복사 FIX)</title>
 <style>
 body{font-family:sans-serif;margin:10px;font-size:12px}
 table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px}
@@ -132,6 +132,7 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
     <button onclick="filterByGroup('관망')">관망</button>
     <button onclick="filterByGroup('ETF')">ETF</button>
     <button onclick="filterByGroup('배당')">배당</button>
+
 </div>
 <button id="btnSaveGroups">그룹 저장</button>
 <button id="btnLoadGroups">그룹 불러오기</button>
@@ -267,7 +268,7 @@ function render(){
     tr.innerHTML=`
 	  <td class="row-no">${i+1}</td>
       <td><input class="code" value="${r.code||''}" style="width: 60px; text-align:right;"></td>
-	  <td><input type="text" class="group-input" data-index="${i}" style="width:60px;"></td>
+	  <td><input type="text" class="group-input" data-index="${i}" value="${r.group || ''}" style="width:60px;"></td>
 	  <td><input class="summary" value="${(r.name || '').trim().substring(0, 2)}" readonly style="width: 30px; text-align:center;"></td>
       <td><input class="name" value="${r.name||''}"></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" style="width: 60px; text-align:right;"></td>
@@ -315,6 +316,11 @@ function applyRow(i,tr,live){
     return ((el ? el.value : '') || '').trim();
   };
   r.code    = get('.code');  
+
+  // ★ 그룹 값 저장
+  const groupVal = get('.group-input');
+  r.group = groupVal;
+	
   const nameVal = get('.name');
   r.name = nameVal;
   const summaryInput = tr.querySelector('.summary');
@@ -1227,94 +1233,73 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 })();
 </script>
-
 <script>
+// 그룹별 필터 (상단 버튼에서 onclick="filterByGroup('단타')" 이런 식으로 호출)
 function filterByGroup(groupName) {
-    const rows = document.querySelectorAll("#stock-table tbody tr");
-
-    rows.forEach(row => {
-        const groupVal = row.querySelector(".group-input")?.value.trim() || "";
-
-        if (groupName === "전체") {
-            row.style.display = "";
-        } else {
-            row.style.display = (groupVal === groupName) ? "" : "none";
-        }
-    });
-}
-
-function saveGroups() {
-    const groupData = {};
-    document.querySelectorAll(".group-input").forEach(input => {
-        const index = input.dataset.index;
-        groupData[index] = input.value.trim();
-    });
-    localStorage.setItem("stock_groups", JSON.stringify(groupData));
-}
-
-function loadGroups() {
-    const saved = localStorage.getItem("stock_groups");
-    if (!saved) return;
-
-    const groupData = JSON.parse(saved);
-    document.querySelectorAll(".group-input").forEach(input => {
-        const index = input.dataset.index;
-        if (groupData[index]) input.value = groupData[index];
-    });
-}
-
-// -----------------------------
-// 그룹 저장 기능
-// -----------------------------
-document.getElementById("btnSaveGroups").onclick = () => {
-    let rows = document.querySelectorAll("#stockTable tbody tr");
-    let groupData = {};
-
-    rows.forEach(row => {
-        let code = row.querySelector("td[data-col='code']")?.innerText.trim();
-        let group = row.querySelector("td[data-col='group']")?.innerText.trim();
-        if (code) {
-            groupData[code] = group || "";
-        }
-    });
-
-    localStorage.setItem("stock_groups", JSON.stringify(groupData));
-    alert("그룹이 저장되었습니다!");
-};
-
-// -----------------------------
-// 그룹 불러오기 기능
-// -----------------------------
-document.getElementById("btnLoadGroups").onclick = () => {
-    let saved = localStorage.getItem("stock_groups");
-    if (!saved) {
-        alert("저장된 그룹 데이터가 없습니다.");
-        return;
+  document.querySelectorAll('#tbody tr').forEach((tr, idx) => {
+    const val = (tr.querySelector('.group-input')?.value || '').trim();
+    if (groupName === '전체' || groupName === '' ) {
+      tr.style.display = '';
+    } else {
+      tr.style.display = (val === groupName) ? '' : 'none';
     }
+  });
+}
 
-    let groupData = JSON.parse(saved);
-    let rows = document.querySelectorAll("#stockTable tbody tr");
+// 그룹만 따로 백업 저장 (코드 기준)
+function saveGroupsOnly() {
+  const map = {};
+  document.querySelectorAll('#tbody tr').forEach(tr => {
+    const code  = (tr.querySelector('.code')?.value || '').trim();
+    const group = (tr.querySelector('.group-input')?.value || '').trim();
+    if (code) map[code] = group;
+  });
+  localStorage.setItem('stock_groups_backup', JSON.stringify(map));
+  alert('그룹이 별도 백업으로 저장되었습니다.');
+}
 
-    rows.forEach(row => {
-        let code = row.querySelector("td[data-col='code']")?.innerText.trim();
+// 그룹 백업 불러오기 (코드 기준 매칭)
+function loadGroupsOnly() {
+  const saved = localStorage.getItem('stock_groups_backup');
+  if (!saved) {
+    alert('저장된 그룹 백업이 없습니다.');
+    return;
+  }
+  const map = JSON.parse(saved);
+  const trs = document.querySelectorAll('#tbody tr');
 
-        if (code && groupData[code] !== undefined) {
-            row.querySelector("td[data-col='group']").innerText = groupData[code];
-        }
-    });
-
-    alert("그룹이 불러와졌습니다!");
-};
-
-loadGroups();
-
-document.addEventListener("input", e => {
-    if (e.target.classList.contains("group-input")) {
-        saveGroups();
+  trs.forEach((tr, idx) => {
+    const code = (tr.querySelector('.code')?.value || '').trim();
+    if (code && Object.prototype.hasOwnProperty.call(map, code)) {
+      const v = map[code] || '';
+      const inp = tr.querySelector('.group-input');
+      if (inp) inp.value = v;
+      if (rows[idx]) rows[idx].group = v;
     }
+  });
+  saveRows();
+  render();
+}
+
+// 버튼에 연결
+document.getElementById('btnSaveGroups').onclick = saveGroupsOnly;
+document.getElementById('btnLoadGroups').onclick = loadGroupsOnly;
+
+// 그룹 input이 바뀌면 rows에도 즉시 반영 (자동 저장)
+document.addEventListener('input', (e) => {
+  const inp = e.target.closest('.group-input');
+  if (!inp) return;
+  const tr = inp.closest('tr');
+  if (!tr) return;
+
+  const idx = [...document.querySelectorAll('#tbody tr')].indexOf(tr);
+  if (idx >= 0 && rows[idx]) {
+    rows[idx].group = inp.value.trim();
+    saveRows();
+  }
 });
-
 </script>
+
 
 
 </body>
