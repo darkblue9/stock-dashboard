@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.0 (그룹필터 + 최적화)</title>
+<title>마녀의 주식 대시보드 v4.1 (레이아웃/집계 수정)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -25,12 +25,13 @@ td input[readonly]{background:#f9f9f9; color:#555}
 /* === 상/하목표 점 === */
 @keyframes pulseRed {0%{box-shadow:0 0 0 0 rgba(255,0,0,.8);}100%{box-shadow:0 0 0 6px rgba(255,0,0,0);}}
 @keyframes pulseBlue{0%{box-shadow:0 0 0 0 rgba(0,100,255,.8);}100%{box-shadow:0 0 0 6px rgba(0,100,255,0);}}
-.dot{width:8px;height:8px;border-radius:50%;background:#bbb;display:inline-block;}
+.dot{width:8px;height:8px;border-radius:50%;background:#bbb;display:inline-block; flex-shrink:0;} /* 점 크기 고정 */
 .dot.red{background:#ff4d4d}
 .dot.blue{background:#3d7bff}
 .blink-red-dot{animation:pulseRed .9s infinite;}
 .blink-blue-dot{animation:pulseBlue .9s infinite;}
-.target-cell{display:flex;align-items:center;gap:2px;justify-content:center}
+.target-cell{display:flex;align-items:center;gap:4px;justify-content:center; width:100%;}
+.target-cell input { flex: 1; min-width: 0; } /* 입력창 유연하게 */
 
 /* === 상단 필터 바 === */
 .filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 4px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; }
@@ -40,8 +41,8 @@ td input[readonly]{background:#f9f9f9; color:#555}
 
 /* === 그룹 배지 버튼 (단/장) === */
 .grp-btn { width: 24px; height: 20px; font-size: 11px; font-weight:bold; border:1px solid rgba(0,0,0,0.1); border-radius: 4px; cursor:pointer; padding:0;}
-.grp-short { background: #ffdede; color: #d00; } /* 단타: 붉은 계열 */
-.grp-long  { background: #deeaff; color: #006; } /* 장투: 푸른 계열 */
+.grp-short { background: #ffdede; color: #d00; } 
+.grp-long  { background: #deeaff; color: #006; }
 
 /* === 토스트, 상단 배지 === */
 .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 12px;border-radius:8px;opacity:.95;z-index:9999}
@@ -61,27 +62,26 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 .delta-pos{background:#ffebeb; color:#c00;}
 .delta-neg{background:#ebf3ff; color:#1e5aff;}
 
-/* === 컬럼 폭 설정 === */
+/* === 컬럼 폭 설정 (조금 더 넉넉하게 수정) === */
 #grid td > input { width: 100%; padding: 2px; box-sizing: border-box; text-align: right; border:none; background: transparent;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; }
 #grid td input.code { text-align: center; }
 
 col.col-no { width: 30px; }
-col.col-group { width: 36px; } /* 구분 컬럼 */
+col.col-group { width: 36px; }
 col.col-code { width: 60px; }
-col.col-name { width: auto; }
+col.col-name { width: 100px; } /* 이름 폭 늘림 */
 col.col-avg { width: 70px; }
 col.col-qty { width: 40px; }
 col.col-inv { width: 80px; }
-col.col-target { width: 85px; } /* 상/하목표 */
-col.col-cur { width: 75px; }
+col.col-target { width: 90px; } /* 목표가 폭 늘림 */
+col.col-cur { width: 80px; }    /* 현재가 폭 늘림 */
 col.col-fix { width: 75px; }
-col.col-profit { width: 70px; }
+col.col-profit { width: 75px; }
 col.col-percent { width: 55px; }
 col.col-act { width: 160px; }
 
-/* 모바일 대응 */
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
   .filter-bar { flex-wrap: wrap; }
@@ -151,523 +151,3 @@ col.col-act { width: 160px; }
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익</th><th>%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
-</table>
-<div style="text-align:right; margin-top:5px; font-weight:bold;">
-  총 손익: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26% 반영)
-</div>
-
-<div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
-  <div style="background:#fff; width:90%; max-width:600px; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
-    <div style="display:flex; justify-content:space-between; margin-bottom:10px;">
-      <strong id="chartTitle">차트</strong>
-      <button onclick="document.getElementById('chartModal').style.display='none'">닫기</button>
-    </div>
-    <canvas id="histChart" style="width:100%; height:300px;"></canvas>
-  </div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-// ==========================================
-// 1. 유틸리티 및 설정
-// ==========================================
-const $=(s)=>document.querySelector(s);
-const $$=(s)=>document.querySelectorAll(s);
-const fmt=(n)=>(n??0).toLocaleString('ko-KR');
-const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
-
-// 수수료 설정
-const FEE_BUY=0.00015, FEE_SELL=0.00015, TAX_SELL=0.00230; // 매도세 0.23% (2024년 기준, 필요시 수정)
-function calcProfit(avg,cur,fix,qty){
-  const base=(fix && fix!==0) ? fix : cur;
-  if(!avg||!qty||!base) return {won:0,pct:0};
-  const buyAmt=avg*qty;
-  const sellAmt=base*qty;
-  // 수수료: 매수수수료 + 매도수수료 + 증권거래세
-  const totalCost = (buyAmt * FEE_BUY) + (sellAmt * (FEE_SELL + TAX_SELL));
-  const profit = sellAmt - buyAmt - totalCost;
-  return {won:profit, pct: (profit/buyAmt)*100};
-}
-
-const KEY_ROWS='rows_v4_final';
-const KEY_SET ='set_v4_final';
-let rows=[], settings={};
-let currentFilter = 'short'; // 기본값: 단타만 보기
-
-// ==========================================
-// 2. 데이터 관리 (저장/로드)
-// ==========================================
-function loadJSON(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } }
-function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
-
-function loadAll(){
-  const savedRows = loadJSON(KEY_ROWS,[]);
-  // 기존 데이터에 group 속성이 없으면 'short'로 초기화
-  rows = savedRows.map(r => ({ ...r, group: r.group || 'short' }));
-  
-  settings=Object.assign({
-    apiBase:'https://stock-dashboard.respite9.workers.dev', 
-    apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, loadJSON(KEY_SET,{}));
-  
-  applySettingsToUI();
-}
-
-function applySettingsToUI(){
-  $('#apiBase').value = settings.apiBase;
-  $('#apiMode').value = settings.apiMode;
-  $('#pollSec').value = settings.pollSec;
-}
-
-function saveSettings(){
-  settings.apiBase=$('#apiBase').value.trim();
-  settings.apiMode=$('#apiMode').value;
-  settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
-  saveJSON(KEY_SET,settings);
-}
-function saveRows(){ saveJSON(KEY_ROWS,rows); }
-
-// ==========================================
-// 3. 렌더링 (핵심 로직)
-// ==========================================
-function render(){
-  const tb=$('#tbody'); tb.innerHTML='';
-  
-  rows.forEach((r,i)=>{
-    // 필터링: 단타모드면 group='short'만, 장투모드면 group='long'만
-    if(currentFilter === 'short' && r.group === 'long') return;
-    if(currentFilter === 'long' && r.group === 'short') return;
-
-    const tr=document.createElement('tr');
-    tr.dataset.idx = i; // 원본 배열 인덱스 저장
-
-    // 그룹 버튼 클래스 및 텍스트
-    const isLong = r.group === 'long';
-    const grpClass = isLong ? 'grp-long' : 'grp-short';
-    const grpText = isLong ? '장' : '단';
-
-    tr.innerHTML=`
-      <td class="row-no">${i+1}</td>
-      <td><button class="grp-btn ${grpClass}">${grpText}</button></td>
-      <td><input class="code" value="${r.code||''}"></td>
-      <td><input class="name" value="${r.name||''}"></td>
-      <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
-      <td><input class="qty" value="${r.qty||''}"></td>
-      <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
-      
-      <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" value="${r.utarget||''}"></div></td>
-      <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" value="${r.ltarget||''}"></div></td>
-      
-      <td class="cur-cell">
-        <input class="cur" value="${r.cur?fmt(r.cur):''}">
-        <div class="delta-wrap"></div> <div class="trend-dots"></div> </td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}"></td>
-      <td><span class="pw">0</span></td>
-      <td><span class="pp">0%</span></td>
-      <td>
-        <span class="actions">
-          <button class="chart-btn">차트</button>
-          <span class="mv">
-            <button class="up">▲</button>
-            <button class="dn">▼</button>
-          </span>
-          <button class="del">삭제</button>
-        </span>
-      </td>`;
-    
-    tb.appendChild(tr);
-
-    // 이벤트 리스너 바인딩
-    const bindInput = (sel, key, isNum) => {
-      const el = tr.querySelector(sel);
-      el.addEventListener('change', ()=>{
-        let val = el.value;
-        if(isNum) val = toNum(val);
-        rows[i][key] = val;
-        saveRows();
-        updateRowCalculation(tr, rows[i]); // 즉시 재계산
-      });
-      // 숫자 포맷팅 (blur시)
-      if(isNum) el.addEventListener('blur', ()=> el.value = rows[i][key] ? fmt(rows[i][key]) : '');
-    };
-
-    bindInput('.code', 'code');
-    bindInput('.name', 'name');
-    bindInput('.avg', 'avg', true);
-    bindInput('.qty', 'qty', true);
-    bindInput('.cur', 'cur', true);
-    bindInput('.fix', 'fix', true);
-    bindInput('.utarget', 'utarget', true);
-    bindInput('.ltarget', 'ltarget', true);
-
-    // 그룹 토글 버튼
-    tr.querySelector('.grp-btn').onclick = () => {
-       r.group = (r.group === 'short') ? 'long' : 'short';
-       saveRows();
-       render(); // 화면 갱신 (사라지거나 생김)
-    };
-
-    // 삭제/이동/차트
-    tr.querySelector('.del').onclick = () => {
-      if(confirm('삭제합니까?')) { rows.splice(i,1); saveRows(); render(); }
-    };
-    tr.querySelector('.up').onclick = () => {
-      if(i>0) { [rows[i-1], rows[i]] = [rows[i], rows[i-1]]; saveRows(); render(); }
-    };
-    tr.querySelector('.dn').onclick = () => {
-      if(i<rows.length-1) { [rows[i+1], rows[i]] = [rows[i], rows[i+1]]; saveRows(); render(); }
-    };
-    tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name);
-    
-    // 초기 계산
-    updateRowCalculation(tr, r);
-  });
-  
-  updateTotalProfit();
-}
-
-function updateRowCalculation(tr, r){
-  // 1. 투입금
-  r.inv = (r.avg||0) * (r.qty||0);
-  tr.querySelector('.inv').value = fmt(r.inv);
-
-  // 2. 손익
-  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-  const pw = tr.querySelector('.pw');
-  const pp = tr.querySelector('.pp');
-  
-  pw.textContent = fmt(Math.round(won));
-  pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg');
-  
-  pp.textContent = pct.toFixed(2) + '%';
-  pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg');
-
-  // 3. 목표가 점멸
-  const utDot = tr.querySelector('.ut-dot');
-  const ltDot = tr.querySelector('.lt-dot');
-  const upReached = r.utarget > 0 && r.cur >= r.utarget;
-  const downReached = r.ltarget > 0 && r.cur <= r.ltarget;
-  
-  utDot.className = 'dot ut-dot' + (upReached ? ' red blink-red-dot' : '');
-  ltDot.className = 'dot lt-dot' + (downReached ? ' blue blink-blue-dot' : '');
-
-  // 4. 주수 보유 시 색상 강조 (운영중인 종목)
-  const hasQty = (r.qty > 0);
-  const hasFix = (r.fix > 0);
-  const curTd = tr.querySelector('.cur').closest('td');
-  if(hasQty && !hasFix) {
-    curTd.style.backgroundColor = '#e0f7fa'; // 운영중 (하늘색)
-    tr.querySelector('.qty').style.fontWeight = 'bold';
-  } else if(hasFix) {
-    curTd.style.backgroundColor = ''; 
-    tr.querySelector('.fix').closest('td').style.backgroundColor = '#eee'; // 매도완료 (회색)
-  } else {
-    curTd.style.backgroundColor = '';
-  }
-
-  // 5. 스냅샷 점 & 델타 (히스토리 기반)
-  updateHistoryVisuals(tr, r.code, r.cur);
-}
-
-function updateTotalProfit(){
-  let total = 0;
-  // *주의: 필터링된 항목만 계산할지, 전체를 계산할지 결정해야 함.
-  // 동일이의 요청: "단타만 보거나..." -> 보이는 것만 합산하는 게 맞음.
-  // 하지만 전체 자산 파악을 위해 내부적으로는 다 돌릴 수도 있음.
-  // 여기서는 "현재 화면에 보이는 종목"만 합산하도록 구현함.
-  $$('#tbody tr').forEach(tr => {
-    const pw = tr.querySelector('.pw');
-    if(pw) total += toNum(pw.textContent);
-  });
-  
-  const el = $('#totalProfit');
-  el.textContent = fmt(total);
-  el.className = total >= 0 ? 'profit-pos' : 'profit-neg';
-  
-  $('#topTotal').textContent = '총 손익: ' + fmt(total);
-  $('#topTotal').className = 'top-total ' + (total >= 0 ? 'total-pos' : 'total-neg');
-}
-
-// ==========================================
-// 4. API 폴링 및 네트워크
-// ==========================================
-async function fetchPrices(){
-  if(!rows.length) return;
-  const codes = rows.map(r => r.code).filter(c => c && c.length >= 6);
-  if(!codes.length) return;
-
-  // 중복제거 및 네이버 포맷
-  const uniqueCodes = [...new Set(codes)].map(c => {
-    let code = c.trim().toUpperCase();
-    if(/^\d{6}$/.test(code)) return code; // 네이버는 .KS 안붙여도 됨 (polling api)
-    return code.replace('.KS','').replace('.KQ','');
-  });
-
-  const url = `${settings.apiBase}/api/prices?codes=${uniqueCodes.join(',')}&t=${Date.now()}`;
-  
-  setStatus('갱신중...', true);
-  try {
-    const res = await fetch(url, {cache:'no-store'});
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const json = await res.json();
-    const data = json.data || [];
-    
-    // 데이터 맵핑
-    const priceMap = {};
-    data.forEach(d => {
-      // 네이버 API 응답 구조 대응
-      const code = d.code || d.cd || d.symbol;
-      const price = d.price || d.nv || d.last;
-      if(code) priceMap[code] = Number(price);
-    });
-
-    // rows 업데이트
-    let changed = false;
-    rows.forEach(r => {
-      if(!r.code) return;
-      const key = r.code.replace('.KS','').replace('.KQ','');
-      if(priceMap[key]) {
-        if(r.cur !== priceMap[key]) {
-          r.cur = priceMap[key];
-          addSnapshot(r.code, r.cur); // 히스토리 저장
-          changed = true;
-        }
-      }
-    });
-
-    if(changed) {
-      saveRows();
-      render(); // 전체 다시 그리기 (값 갱신)
-    }
-    setStatus('OK ' + new Date().toLocaleTimeString(), true);
-  } catch(e) {
-    console.error(e);
-    setStatus('에러: '+e.message, false);
-  }
-}
-
-let timerId = null;
-function startPolling(){
-  if(timerId) clearInterval(timerId);
-  const sec = Math.max(2, Number($('#pollSec').value));
-  timerId = setInterval(() => {
-    if($('#liveToggle').checked) fetchPrices();
-  }, sec * 1000);
-  if($('#liveToggle').checked) fetchPrices();
-}
-
-function setStatus(msg, isOk){
-  const el = $('#status');
-  el.textContent = msg;
-  el.style.color = isOk ? 'green' : 'red';
-}
-
-// ==========================================
-// 5. 히스토리 & 차트 (스냅샷)
-// ==========================================
-const HIST_KEY_PREFIX = "hist_";
-function getHistKey(code) { return HIST_KEY_PREFIX + code; }
-function loadHist(code){ try{ return JSON.parse(localStorage.getItem(getHistKey(code)))||[]; }catch{return[];} }
-function addSnapshot(code, price){
-  const key = getHistKey(code);
-  let hist = loadHist(code);
-  const now = Date.now();
-  // 5분 단위 스냅샷 (마지막 저장본과 5분 차이나면 저장)
-  const last = hist[hist.length-1];
-  if(!last || (now - last.t > 5*60*1000)) {
-    hist.push({t:now, p:price});
-    if(hist.length > 200) hist.shift(); // 200개 제한
-    localStorage.setItem(key, JSON.stringify(hist));
-  }
-}
-
-function updateHistoryVisuals(tr, code, cur){
-  if(!code || !cur) return;
-  const hist = loadHist(code);
-  if(!hist.length) return;
-
-  // 1. 델타 (5분전, 1시간전)
-  const getPriceAgo = (ms) => {
-    const target = Date.now() - ms;
-    // target보다 이전 것 중 가장 최근 것 찾기
-    for(let i=hist.length-1; i>=0; i--){
-      if(hist[i].t <= target) return hist[i].p;
-    }
-    return null;
-  };
-
-  const p5m = getPriceAgo(5*60*1000);
-  const p1h = getPriceAgo(60*60*1000);
-  
-  let html = '';
-  const mkBadge = (lbl, oldP) => {
-    if(!oldP) return '';
-    const diff = cur - oldP;
-    if(diff === 0) return '';
-    const cls = diff > 0 ? 'delta-pos' : 'delta-neg';
-    const sign = diff > 0 ? '+' : '';
-    return `<span class="delta-badge ${cls}">${lbl} ${sign}${diff}</span>`;
-  };
-  
-  html += mkBadge('5m', p5m);
-  html += mkBadge('1h', p1h);
-  
-  const dWrap = tr.querySelector('.delta-wrap');
-  if(dWrap) dWrap.innerHTML = html;
-
-  // 2. 점 5개 (최근 트렌드)
-  const dotsBox = tr.querySelector('.trend-dots');
-  if(dotsBox && hist.length >= 2) {
-    // 최근 5개만 봄
-    const recent = hist.slice(-6); // 현재 포함 비교를 위해 넉넉히
-    let dotsHtml = '';
-    for(let i=1; i<recent.length; i++){
-       const prev = recent[i-1].p;
-       const curr = recent[i].p;
-       const cls = curr > prev ? 'up' : (curr < prev ? 'down' : '');
-       if(cls) dotsHtml += `<span class="trend-dot ${cls}"></span>`;
-    }
-    dotsBox.innerHTML = dotsHtml;
-  }
-}
-
-function showChart(code, name){
-  const hist = loadHist(code);
-  if(!hist.length) { alert('히스토리 데이터가 없습니다.'); return; }
-  
-  const ctx = $('#histChart').getContext('2d');
-  if(window.myChart) window.myChart.destroy();
-  
-  window.myChart = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: hist.map(h => new Date(h.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})),
-      datasets: [{
-        label: name || code,
-        data: hist.map(h => h.p),
-        borderColor: '#ff4d4d',
-        tension: 0.1,
-        pointRadius: 2
-      }]
-    },
-    options: { responsive: true, maintainAspectRatio: false }
-  });
-  
-  $('#chartTitle').textContent = `${name} (${code})`;
-  $('#chartModal').style.display = 'flex';
-}
-
-// ==========================================
-// 6. 기타 기능 & 이벤트
-// ==========================================
-// 필터 버튼 클릭
-$$('.filter-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    $$('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentFilter = btn.dataset.filter;
-    render();
-  });
-});
-
-// 정렬 (주수 있는 것 위로, 그중 손익금 큰 순서)
-$('#btnSortEmptyQty').onclick = () => {
-  rows.sort((a,b) => {
-    // 1. 주수 유무 (내림차순)
-    const qa = (a.qty||0), qb = (b.qty||0);
-    if(!!qa !== !!qb) return !!qb - !!qa;
-    
-    // 2. 주수 있으면 손익금 내림차순
-    if(qa && qb) {
-      const pa = calcProfit(a.avg, a.cur, a.fix, a.qty).won;
-      const pb = calcProfit(b.avg, b.cur, b.fix, b.qty).won;
-      return pb - pa;
-    }
-    
-    // 3. 나머지는 이름순
-    return (a.name||'').localeCompare(b.name||'');
-  });
-  saveRows();
-  render();
-};
-
-// 목표가 자동 세팅
-$('#btnSetTargets').onclick = () => {
-  rows.forEach(r => {
-    // 주수 있고 매도가 없으면 -> 매수가+수수료+1만원
-    if(r.qty > 0 && !r.fix) {
-      const buyAmt = r.avg * r.qty;
-      const fee = buyAmt * 0.003; // 대략 0.3% 잡음
-      r.utarget = Math.round((buyAmt + fee + 10000) / r.qty);
-      r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty);
-    } else if(!r.qty && r.cur) {
-      // 감시용 -> 현재가 +- 3%
-      r.utarget = Math.round(r.cur * 1.03);
-      r.ltarget = Math.round(r.cur * 0.97);
-    }
-  });
-  saveRows();
-  render();
-};
-
-// 로컬 복사
-$('#copyTxtBtn').onclick = () => {
-  const txt = rows.map(r => `${r.name}\t${r.cur}\t${r.qty||0}`).join('\n');
-  navigator.clipboard.writeText(txt).then(()=>alert('복사완료'));
-};
-
-// 클라우드 저장 (Apps Script)
-const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
-const CLOUD_ID = "stock-dashboard-rows";
-
-$('#cloudSaveBtn').onclick = async () => {
-  if(!confirm('클라우드(Google)에 저장할까요?')) return;
-  try {
-    const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=UTF-8" },
-      body: JSON.stringify({ rows, settings, ts: Date.now() })
-    });
-    if(res.ok) alert('저장 성공!');
-    else alert('저장 실패: ' + res.status);
-  } catch(e) { alert('에러: '+e.message); }
-};
-
-$('#cloudLoadBtn').onclick = async () => {
-  if(!confirm('클라우드에서 불러오면 현재 데이터가 덮어씌워집니다.')) return;
-  try {
-    const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID);
-    const json = await res.json();
-    if(json.rows) {
-      rows = json.rows;
-      // 불러온 데이터에 group 없으면 추가
-      rows = rows.map(r => ({ ...r, group: r.group || 'short' }));
-      saveRows();
-    }
-    if(json.settings) {
-      settings = Object.assign(settings, json.settings);
-      saveSettings();
-      applySettingsToUI();
-    }
-    render();
-    alert('불러오기 완료');
-  } catch(e) { alert('에러: '+e.message); }
-};
-
-$('#addRowBtn').onclick = () => {
-  // 현재 필터에 맞는 그룹으로 자동 생성
-  rows.unshift({ group: currentFilter==='long'?'long':'short' });
-  saveRows();
-  render();
-};
-
-// ==========================================
-// 초기화 실행
-// ==========================================
-loadAll();
-render();
-startPolling();
-
-</script>
-</body>
-</html>
