@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v4.7 (차트 팝업 크기 수정)</title>
+<title>마녀의 주식 대시보드 v5.1 (보이는 것만 복사)</title>
 <style>
 /* === 기본 스타일 === */
 body{font-family:sans-serif;margin:10px;font-size:12px}
@@ -35,7 +35,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .target-cell input { flex: 1; min-width: 0; }
 
 /* === 상단 필터 바 === */
-.filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 4px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; }
+.filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 4px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
 .filter-label { font-weight: bold; margin-right: 4px; }
 .filter-btn { padding: 5px 12px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; }
 .filter-btn.active { background: #333; color: #fff; border-color: #000; font-weight: bold; }
@@ -62,25 +62,33 @@ td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50
 .delta-pos{background:#ffebeb; color:#c00;}
 .delta-neg{background:#ebf3ff; color:#1e5aff;}
 
+/* === D-Day 스타일 === */
+.date-cell { display:flex; flex-direction:column; align-items:center; gap:2px; }
+.d-day-badge { font-size:10px; font-weight:bold; color:#fff; background:#888; padding:1px 4px; border-radius:4px; display:inline-block; min-width:30px;}
+.d-day-badge.new { background: #ff9800; } /* 7일 이내 */
+.d-day-badge.old { background: #607d8b; } /* 오래된 것 */
+
 /* === 컬럼 폭 설정 === */
 #grid td > input { width: 100%; padding: 2px; box-sizing: border-box; text-align: right; border:none; background: transparent;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; }
 #grid td input.code { text-align: center; }
+#grid td input[type="date"] { font-size: 10px; text-align: center; }
 
 col.col-no { width: 30px; }
 col.col-group { width: 36px; }
-col.col-code { width: 60px; }
-col.col-name { width: 100px; }
-col.col-avg { width: 70px; }
-col.col-qty { width: 40px; }
-col.col-inv { width: 80px; }
-col.col-target { width: 90px; }
-col.col-cur { width: 80px; }
-col.col-fix { width: 75px; }
-col.col-profit { width: 75px; }
+col.col-code { width: 55px; }
+col.col-name { width: 90px; }
+col.col-date { width: 85px; } 
+col.col-avg { width: 65px; }
+col.col-qty { width: 35px; }
+col.col-inv { width: 75px; }
+col.col-target { width: 85px; }
+col.col-cur { width: 75px; }
+col.col-fix { width: 70px; }
+col.col-profit { width: 70px; }
 col.col-percent { width: 55px; }
-col.col-act { width: 160px; }
+col.col-act { width: 140px; }
 
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
@@ -106,7 +114,7 @@ col.col-act { width: 160px; }
   </details>
   
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-    <div>
+    <div style="display:flex; align-items:center; gap:10px;">
       <label><input type="checkbox" id="liveToggle" checked> <b>실시간</b></label>
       <span id="status" class="status">대기</span>
     </div>
@@ -118,6 +126,12 @@ col.col-act { width: 160px; }
     <button class="filter-btn active" data-filter="short">단타만</button>
     <button class="filter-btn" data-filter="long">장투만</button>
     <button class="filter-btn" data-filter="all">전체</button>
+    
+    <div style="width:1px; height:20px; background:#ccc; margin:0 4px;"></div>
+    
+    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
+        <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
+    </label>
   </div>
 
   <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:5px;">
@@ -126,7 +140,7 @@ col.col-act { width: 160px; }
     <button id="cloudSaveBtn">☁️저장</button>
     <button id="cloudLoadBtn">☁️불러오기</button>
     <button id="copyTxtBtn">텍스트복사</button>
-    <button id="btnSortEmptyQty">정렬</button>
+    <button id="btnSortEmptyQty">정렬(운영중↑)</button>
     <button id="btnSetTargets">목표가세팅</button>
   </div>
 </div>
@@ -136,6 +150,7 @@ col.col-act { width: 160px; }
     <col class="col-no">
     <col class="col-group"> <col class="col-code">
     <col class="col-name">
+    <col class="col-date">
     <col class="col-avg">
     <col class="col-qty">
     <col class="col-inv">
@@ -148,13 +163,14 @@ col.col-act { width: 160px; }
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th><th>구분</th><th>코드</th><th>이름</th><th>매수가</th><th>주수</th><th>투입금</th>
+    <th>No</th><th>구분</th><th>코드</th><th>이름</th><th>보유일</th>
+    <th>매수가</th><th>주수</th><th>투입금</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익</th><th>%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
 <div style="text-align:right; margin-top:5px; font-weight:bold;">
-  총 손익: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26% 반영)
+  <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -190,8 +206,21 @@ function calcProfit(avg,cur,fix,qty){
   return {won:profit, pct: (profit/buyAmt)*100};
 }
 
-const KEY_ROWS='rows_v4_final';
-const KEY_SET ='set_v4_final';
+function getDDay(dateStr) {
+    if(!dateStr) return '';
+    const target = new Date(dateStr);
+    target.setHours(0,0,0,0);
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const diff = (today - target) / (1000 * 60 * 60 * 24);
+    const d = Math.floor(diff);
+    if(d === 0) return 'D-Day';
+    if(d > 0) return 'D+'+d;
+    return 'D'+d; 
+}
+
+const KEY_ROWS='rows_v5_final';
+const KEY_SET ='set_v5_final';
 let rows=[], settings={};
 let currentFilter = 'short'; 
 
@@ -203,7 +232,6 @@ function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 
 function loadAll(){
   const savedRows = loadJSON(KEY_ROWS,[]);
-  // 데이터 안전장치
   rows = savedRows.map(r => {
     if(typeof r !== 'object' || r === null) return { group: 'short' };
     return { ...r, group: r.group || 'short' };
@@ -231,31 +259,46 @@ function saveSettings(){
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
 // ==========================================
-// 3. 렌더링 (핵심 로직)
+// 3. 렌더링
 // ==========================================
 function render(){
   const tb=$('#tbody'); 
   if(!tb) return;
   tb.innerHTML='';
   
+  const hideSold = $('#hideSoldToggle').checked;
+  let displayIdx = 0;
+
   rows.forEach((r,i)=>{
     if(currentFilter === 'short' && r.group === 'long') return;
     if(currentFilter === 'long' && r.group === 'short') return;
+    
+    const isSold = (r.fix > 0);
+    if(hideSold && isSold) return;
 
+    displayIdx++;
     const tr=document.createElement('tr');
     tr.dataset.idx = i;
     const isLong = r.group === 'long';
     const grpClass = isLong ? 'grp-long' : 'grp-short';
     const grpText = isLong ? '장' : '단';
-
-    // 호가 단위 결정
     const stepVal = (r.cur >= 100000) ? 500 : 100;
+    
+    const dDayStr = getDDay(r.date);
+    const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day' || dDayStr.startsWith('D+1') || dDayStr.startsWith('D+2')) ? 'new' : 'old';
+    const dDayBadge = dDayStr ? `<span class="d-day-badge ${dDayClass}">${dDayStr}</span>` : '';
 
     tr.innerHTML=`
-      <td class="row-no">${i+1}</td>
+      <td class="row-no">${displayIdx}</td>
       <td><button class="grp-btn ${grpClass}">${grpText}</button></td>
       <td><input class="code" value="${r.code||''}"></td>
       <td><input class="name" value="${r.name||''}"></td>
+      
+      <td><div class="date-cell">
+        ${dDayBadge}
+        <input type="date" class="date" value="${r.date||''}">
+      </div></td>
+
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
       <td><input class="qty" value="${r.qty||''}"></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
@@ -282,19 +325,17 @@ function render(){
     
     tb.appendChild(tr);
 
-    // 이벤트 바인딩
     const bindInput = (sel, key, isNum) => {
       const el = tr.querySelector(sel);
       if(!el) return;
-      
       el.addEventListener('change', ()=>{
         let val = el.value;
         if(isNum) val = toNum(val);
         rows[i][key] = val;
         saveRows();
-        updateRowCalculation(tr, rows[i]);
+        if(key === 'date') render(); 
+        else updateRowCalculation(tr, rows[i]);
       });
-      
       if(isNum && el.type !== 'number') {
         el.addEventListener('blur', ()=> el.value = rows[i][key] ? fmt(rows[i][key]) : '');
       }
@@ -302,6 +343,7 @@ function render(){
 
     bindInput('.code', 'code');
     bindInput('.name', 'name');
+    bindInput('.date', 'date');
     bindInput('.avg', 'avg', true);
     bindInput('.qty', 'qty', true);
     bindInput('.cur', 'cur', true);
@@ -377,28 +419,34 @@ function updateRowCalculation(tr, r){
 
 function updateTotalProfit(){
   let total = 0;
+  const hideSold = $('#hideSoldToggle').checked;
+
   rows.forEach(r => {
     if(currentFilter === 'short' && r.group === 'long') return;
     if(currentFilter === 'long' && r.group === 'short') return;
+    if(hideSold && r.fix > 0) return;
+
     const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
     total += won;
   });
   
+  const label = hideSold ? '운영 손익' : '총 손익';
   const el = $('#totalProfit');
   if(el) {
     el.textContent = fmt(Math.round(total));
     el.className = total >= 0 ? 'profit-pos' : 'profit-neg';
   }
+  $('#profitLabel').textContent = label;
   
   const topEl = $('#topTotal');
   if(topEl) {
-    topEl.textContent = '총 손익: ' + fmt(Math.round(total));
+    topEl.textContent = label + ': ' + fmt(Math.round(total));
     topEl.className = 'top-total ' + (total >= 0 ? 'total-pos' : 'total-neg');
   }
 }
 
 // ==========================================
-// 4. API 폴링 및 네트워크
+// 4. API 폴링
 // ==========================================
 async function fetchPrices(){
   if(!rows.length) return;
@@ -563,7 +611,7 @@ function showChart(code, name){
 }
 
 // ==========================================
-// 6. 이벤트 등록 및 실행 (DOMContentLoaded)
+// 6. 이벤트 등록
 // ==========================================
 document.addEventListener('DOMContentLoaded', () => {
   // 필터 버튼
@@ -575,31 +623,31 @@ document.addEventListener('DOMContentLoaded', () => {
       render();
     });
   });
+  
+  // 매도숨김 토글
+  $('#hideSoldToggle').addEventListener('change', render);
 
-  // 정렬 (매도 > 매수(손익) > 관망(이름))
+  // 정렬 로직 (운영중 -> 매도 -> 관망)
   $('#btnSortEmptyQty').addEventListener('click', () => {
-    const groupSold = [];
-    const groupActive = [];
-    const groupWatch = [];
+    const active = []; 
+    const sold = [];   
+    const watch = [];  
 
     rows.forEach(r => {
-      const q = r.qty || 0;
-      const f = r.fix || 0;
-      
-      if(f > 0) { groupSold.push(r); } 
-      else if(q > 0) { groupActive.push(r); } 
-      else { groupWatch.push(r); }
+      if(r.fix > 0) sold.push(r);
+      else if(r.qty > 0) active.push(r);
+      else watch.push(r);
     });
 
-    groupActive.sort((a,b) => {
+    active.sort((a,b) => {
       const pa = calcProfit(a.avg, a.cur, a.fix, a.qty).won;
       const pb = calcProfit(b.avg, b.cur, b.fix, b.qty).won;
       return pb - pa;
     });
+    
+    watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
 
-    groupWatch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-
-    rows = [...groupSold, ...groupActive, ...groupWatch];
+    rows = [...active, ...sold, ...watch];
     saveRows();
     render();
   });
@@ -631,18 +679,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 전체 데이터 텍스트 복사 (엑셀용)
+  // [수정된 기능] 보이는 데이터만 복사 (필터링 적용)
   $('#copyTxtBtn').addEventListener('click', () => {
-    const headers = ['구분', '코드', '이름', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '매도가', '손익', '수익률'];
+    const headers = ['구분', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '매도가', '손익', '수익률'];
     
-    const lines = rows.map(r => {
+    // 현재 필터 상태 확인
+    const hideSold = $('#hideSoldToggle').checked;
+
+    // 필터링된 데이터 추출
+    const visibleRows = rows.filter(r => {
+        // 1. 단타/장투 탭 필터
+        if(currentFilter === 'short' && r.group === 'long') return false;
+        if(currentFilter === 'long' && r.group === 'short') return false;
+
+        // 2. 매도숨김 필터
+        if(hideSold && r.fix > 0) return false;
+
+        return true;
+    });
+
+    const lines = visibleRows.map(r => {
       const grp = r.group === 'long' ? '장투' : '단타';
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-      
+      const dDay = getDDay(r.date);
+
       return [
         grp,
         r.code || '',
         r.name || '',
+        dDay + (r.date ? `(${r.date})` : ''),
         r.avg || 0,
         r.qty || 0,
         (r.avg||0) * (r.qty||0),
@@ -656,7 +721,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     const txt = headers.join('\t') + '\n' + lines.join('\n');
-    navigator.clipboard.writeText(txt).then(()=>alert('전체 데이터 복사 완료! 스프레드시트에 붙여넣으세요.'));
+    navigator.clipboard.writeText(txt).then(()=>alert(`보이는 데이터(${visibleRows.length}건) 복사 완료!`));
   });
 
   // 클라우드 저장
@@ -703,11 +768,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   $('#resetBtn').addEventListener('click', () => {
-    if(confirm('⚠️정말 모든 데이터를 비우고 초기화할까요?\n(화면이 깨지거나 추가가 안 될 때 사용하세요)')) {
+    if(confirm('⚠️정말 모든 데이터를 초기화할까요?')) {
       rows = [];
       saveRows();
       render();
-      alert('초기화 완료. 이제 [+추가] 버튼을 눌러보세요.');
+      alert('초기화 완료.');
     }
   });
 
