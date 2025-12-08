@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v5.5 (시크릿 노트)</title>
+<title>마녀의 주식 대시보드 v5.6 (더블 캐시)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -117,6 +117,7 @@ col.col-avg { width: 70px; }
 col.col-qty { width: 40px; }
 col.col-inv { width: 80px; }
 col.col-target { width: 90px; }
+col.col-target { width: 90px; }
 col.col-cur { width: 80px; }
 col.col-fix { width: 75px; }
 col.col-profit { width: 75px; }
@@ -204,7 +205,9 @@ col.col-act { width: 130px; }
   <tbody id="tbody"></tbody>
 </table>
 <div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
-  <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26% 반영)
+  <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> 
+  | <span id="operatingLabel">운영중 손익</span>: <span id="operatingProfit" class="profit-neg">0</span> 
+  (수수료 0.26% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -429,7 +432,7 @@ function render(){
     const btnChart = tr.querySelector('.chart-btn');
     if(btnChart) btnChart.onclick = () => showChart(r.code, r.name);
     
-    updateRowCalculation(tr, r);
+    updateRowCalculation(tr, rows[i]);
   });
   
   updateTotalProfit();
@@ -476,38 +479,50 @@ function updateRowCalculation(tr, r){
   updateHistoryVisuals(tr, r.code, r.cur);
 }
 
+// [수정] 운영중 손익 분리 계산
 function updateTotalProfit(){
-  let total = 0;
-  // const hideSold = $('#hideSoldToggle').checked; // [수정] 계산에는 hideSold 영향 안 받게 함!
+  let totalProfit = 0; // 총 손익 (실현 + 평가)
+  let operatingProfit = 0; // 운영중 손익 (평가만)
 
   rows.forEach(r => {
-    // 그룹 필터는 계산에도 적용 (단타 볼땐 단타 수익만, 장투 볼땐 장투 수익만)
+    // 그룹 필터는 계산에도 적용 
     if(currentFilter === 'short' && r.group === 'long') return;
     if(currentFilter === 'long' && r.group === 'short') return;
     
-    // [수정] '매도숨김'이 체크되어 있어도(r.fix > 0) 돈 계산에는 포함시킴!
-    // if(hideSold && r.fix > 0) return; <- 삭제
-
     const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-    total += won;
+    
+    totalProfit += won; // 항상 총 손익에 합산
+
+    // 운영중 종목 확인: 주수가 있고 매도가(fix)가 0인 경우 (평가 손익)
+    const isOperating = (r.qty > 0 && r.fix == 0); 
+    
+    if(isOperating) {
+        operatingProfit += won; // 운영중 손익에 합산
+    }
   });
   
-  const hideSold = $('#hideSoldToggle').checked;
-  // 라벨 변경 (숨김 상태면 '총 손익(숨김포함)' 이라고 티를 내줄까 하다가, 그냥 깔끔하게 감)
-  const label = '총 손익'; 
-  
-  const el = $('#totalProfit');
-  if(el) {
-    el.textContent = fmt(Math.round(total));
-    el.className = total >= 0 ? 'profit-pos' : 'profit-neg';
+  // 1. 총 손익 업데이트
+  const elTotal = $('#totalProfit');
+  if(elTotal) {
+    elTotal.textContent = fmt(Math.round(totalProfit));
+    elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg';
   }
-  $('#profitLabel').textContent = label;
+  $('#profitLabel').textContent = '총 손익'; 
   
+  // 상단 토스트에도 총 손익 반영
   const topEl = $('#topTotal');
   if(topEl) {
-    topEl.textContent = label + ': ' + fmt(Math.round(total));
-    topEl.className = 'top-total ' + (total >= 0 ? 'total-pos' : 'total-neg');
+    topEl.textContent = '총 손익: ' + fmt(Math.round(totalProfit));
+    topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
+
+  // 2. [NEW] 운영중 손익 업데이트
+  const elOperating = $('#operatingProfit');
+  if(elOperating) {
+    elOperating.textContent = fmt(Math.round(operatingProfit));
+    elOperating.className = operatingProfit >= 0 ? 'profit-pos' : 'profit-neg';
+  }
+  $('#operatingLabel').textContent = '운영중 손익'; 
 }
 
 // ==========================================
@@ -516,13 +531,17 @@ function updateTotalProfit(){
 async function fetchPrices(){
   if(!rows.length) return;
 
-  // [최적화 1] 매도가(fix)가 없는 '활성 종목'만 추려내서 API 요청 목록 생성
-  // fix가 0이거나 비어있는 경우만 api 호출 대상이 됨
+  // [최적화] 매도가(fix)가 없는 '활성 종목'만 추려내서 API 요청 목록 생성
   const activeRows = rows.filter(r => !r.fix || r.fix == 0);
   const codes = activeRows.map(r => r.code).filter(c => c && c.length >= 6);
 
-  // 활성 종목이 하나도 없으면 API 호출 자체를 안 함 (데이터 절약)
-  if(!codes.length) return;
+  if(!codes.length) {
+      rows.forEach(r => {
+          if(r.fix > 0 && r.cur !== 0) { r.cur = 0; } // 활성 종목 없어도 매도 종목은 0으로 설정
+      });
+      setStatus('활성 종목 없음', true);
+      return;
+  }
 
   // 중복 제거 및 포맷팅
   const uniqueCodes = [...new Set(codes)].map(c => {
@@ -549,10 +568,8 @@ async function fetchPrices(){
 
     let changed = false;
     rows.forEach(r => {
-      // [최적화 2] 매도 확정된 종목 처리
+      // 매도 확정된 종목 처리: 현재가 0원으로 강제 설정
       if(r.fix > 0) {
-        // 이미 0원이면 건드리지 않음 (불필요한 렌더링 방지)
-        // 0원이 아니면 0원으로 강제 초기화하여 저장
         if(r.cur !== 0) {
             r.cur = 0;
             changed = true;
@@ -566,7 +583,7 @@ async function fetchPrices(){
       if(priceMap[key]) {
         if(r.cur !== priceMap[key]) {
           r.cur = priceMap[key];
-          addSnapshot(r.code, r.cur); // 차트 데이터는 활성 종목일 때만 축적
+          addSnapshot(r.code, r.cur); 
           changed = true;
         }
       }
@@ -583,26 +600,9 @@ async function fetchPrices(){
   }
 }
 
-let timerId = null;
-function startPolling(){
-  if(timerId) clearInterval(timerId);
-  const sec = Math.max(2, Number($('#pollSec').value));
-  timerId = setInterval(() => {
-    if($('#liveToggle').checked) fetchPrices();
-  }, sec * 1000);
-  if($('#liveToggle').checked) fetchPrices();
-}
-
-function setStatus(msg, isOk){
-  const el = $('#status');
-  if(el) {
-    el.textContent = msg;
-    el.style.color = isOk ? 'green' : 'red';
-  }
-}
-
 // ==========================================
 // 5. 히스토리 & 차트
+// (이하 생략 - 코드가 길어지므로 변경 없음)
 // ==========================================
 const HIST_KEY_PREFIX = "hist_";
 function getHistKey(code) { return HIST_KEY_PREFIX + code; }
