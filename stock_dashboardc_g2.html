@@ -3,92 +3,92 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v5.1 (보이는 것만 복사)</title>
+<title>마녀의 주식 대시보드 v5.4 (황금 밸런스)</title>
 <style>
-/* === 기본 스타일 === */
-body{font-family:sans-serif;margin:10px;font-size:12px}
-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px; margin-top:5px;}
-th,td{border:1px solid #ccc;padding:4px 2px;text-align:center;vertical-align:middle}
-input,select,button{font:inherit;font-size:12px}
+/* === 기본 스타일 (13px 적용) === */
+body{font-family:sans-serif; margin:10px; font-size:13px;} /* 요청하신 13px */
+table{width:100%; border-collapse:collapse; table-layout:fixed; margin-top:5px;}
+th,td{border:1px solid #ccc; padding:3px 3px; text-align:center; vertical-align:middle; height: 34px;} /* 28px < 34px < 42px */
+input,select,button{font:inherit; font-size:13px;}
+
+/* === 입력창 스타일 (콤팩트하게 복귀) === */
+#grid td > input { width: 100%; padding: 2px 4px; box-sizing: border-box; text-align: right; border:none; background: transparent; height: 26px; line-height: 22px;}
+#grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
+#grid td input.name { text-align: left; font-weight: bold; }
+#grid td input.code { text-align: center; color: #666; font-size: 12px; }
+#grid td input[type="date"] { font-size: 12px; text-align: center; height: 24px; }
+
 td input[readonly]{background:#f9f9f9; color:#555}
-.status{font-size:11px}
-.profit-pos{color:green; font-weight:bold}
-.profit-neg{color:red; font-weight:bold}
+.status{font-size:12px; font-weight:bold;}
+.profit-pos{color:#d32f2f; font-weight:bold}
+.profit-neg{color:#1976d2; font-weight:bold}
 
-/* === 버튼 및 액션 === */
-.actions{display:inline-flex;align-items:center;gap:2px;white-space:nowrap;justify-content:center}
-.mv{display:inline-flex;gap:1px}
-.mv button,.del,.chart-btn{width:22px;height:22px;font-size:11px;padding:0;margin:0; cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px;}
-.del{width:auto;padding:0 6px; background:#fff0f0; border-color:#faa; color:#c00;}
-.chart-btn{width:auto;padding:0 6px; background:#f0f8ff; border-color:#abd; color:#005;}
-#resetBtn { background: #333; color: #fff; border: 1px solid #000; font-weight: bold; }
+/* === 버튼 및 액션 (다시 작게) === */
+.actions{display:inline-flex; align-items:center; gap:2px; white-space:nowrap; justify-content:center}
+.mv{display:inline-flex; gap:1px}
+.mv button, .del, .chart-btn {
+    width: 24px; height: 24px; font-size: 12px; padding: 0; 
+    cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px;
+}
+.del{ width:auto; padding:0 6px; background:#ffebee; border-color:#ef9a9a; color:#c62828; }
+.chart-btn{ width:auto; padding:0 6px; background:#e3f2fd; border-color:#90caf9; color:#1565c0; }
+#resetBtn { background: #333; color: #fff; border: 1px solid #000; font-weight: bold; padding: 4px 8px; font-size: 12px;}
 
-/* === 상/하목표 점 === */
+/* === 목표가 점 === */
 @keyframes pulseRed {0%{box-shadow:0 0 0 0 rgba(255,0,0,.8);}100%{box-shadow:0 0 0 6px rgba(255,0,0,0);}}
 @keyframes pulseBlue{0%{box-shadow:0 0 0 0 rgba(0,100,255,.8);}100%{box-shadow:0 0 0 6px rgba(0,100,255,0);}}
-.dot{width:8px;height:8px;border-radius:50%;background:#bbb;display:inline-block; flex-shrink:0;}
-.dot.red{background:#ff4d4d}
-.dot.blue{background:#3d7bff}
+.dot{width:6px; height:6px; border-radius:50%; background:#ccc; display:inline-block; flex-shrink:0;}
+.dot.red{background:#ff1744}
+.dot.blue{background:#2979ff}
 .blink-red-dot{animation:pulseRed .9s infinite;}
 .blink-blue-dot{animation:pulseBlue .9s infinite;}
-.target-cell{display:flex;align-items:center;gap:4px;justify-content:center; width:100%;}
-.target-cell input { flex: 1; min-width: 0; }
+.target-cell{display:flex; align-items:center; gap:4px; justify-content:center; width:100%;}
+.target-cell input { flex: 1; min-width: 0; font-size: 12px; }
 
 /* === 상단 필터 바 === */
-.filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 4px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
-.filter-label { font-weight: bold; margin-right: 4px; }
-.filter-btn { padding: 5px 12px; border: 1px solid #ccc; background: #fff; cursor: pointer; border-radius: 4px; }
-.filter-btn.active { background: #333; color: #fff; border-color: #000; font-weight: bold; }
+.filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 6px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
+.filter-label { font-weight: bold; margin-right: 4px; font-size: 13px;}
+.filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
+.filter-btn.active { background: #424242; color: #fff; border-color: #000; font-weight: bold;}
 
-/* === 그룹 배지 버튼 (단/장) === */
-.grp-btn { width: 24px; height: 20px; font-size: 11px; font-weight:bold; border:1px solid rgba(0,0,0,0.1); border-radius: 4px; cursor:pointer; padding:0;}
-.grp-short { background: #ffdede; color: #d00; } 
-.grp-long  { background: #deeaff; color: #006; }
+/* === 그룹 배지 버튼 === */
+.grp-btn { width: 26px; height: 22px; font-size: 11px; font-weight:bold; border:1px solid rgba(0,0,0,0.2); border-radius: 4px; cursor:pointer; padding:0;}
+.grp-short { background: #ffebee; color: #c62828; } 
+.grp-long  { background: #e3f2fd; color: #1565c0; }
 
 /* === 토스트, 상단 배지 === */
-.top-total{position:fixed;top:50px;right:12px;z-index:6;background:#fff;border:1px solid #ccc;padding:4px 10px;border-radius:10px;box-shadow:0 4px 14px rgba(0,0,0,.08);font-weight:700}
-.total-pos{color:green} .total-neg{color:red}
+.top-total{position:fixed; top:50px; right:15px; z-index:6; background:#fff; border:2px solid #ccc; padding:6px 12px; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,.1); font-weight:bold; font-size: 14px;}
+.total-pos{color:#d32f2f; border-color:#ef9a9a;} 
+.total-neg{color:#1976d2; border-color:#90caf9;}
 
-/* === 트렌드 점 (5분 스냅샷) === */
-td.cur-cell { position: relative; padding-bottom: 14px; }
-td.cur-cell .trend-dots { position: absolute; left:50%; transform:translateX(-50%); bottom:1px; display:flex; gap:4px; }
-.trend-dot { width:6px; height:6px; border-radius:50%; background:#ddd; opacity:.5 }
-.trend-dot.up   { background:#e53935; opacity:1; }
-.trend-dot.down { background:#1e88e5; opacity:1; }
+/* === 트렌드 점 (유지: 잘 보이게) === */
+td.cur-cell { position: relative; }
+td.cur-cell .trend-dots { position: absolute; right: 3px; bottom: 3px; display:flex; gap:2px; pointer-events:none;} 
+.trend-dot { width:6px; height:6px; border-radius:50%; background:#ddd; opacity:.5 } /* 크기 유지 */
+.trend-dot.up   { background:#d32f2f; opacity:1; }
+.trend-dot.down { background:#1976d2; opacity:1; }
 
-/* === 델타 배지 === */
-.delta-badges{display:block; font-size:10px; margin-top:2px; line-height: 1.1;}
-.delta-badge{ display:inline-block; border-radius:4px; padding:0 3px; margin:0 1px;}
-.delta-pos{background:#ffebeb; color:#c00;}
-.delta-neg{background:#ebf3ff; color:#1e5aff;}
+/* === D-Day 배지 === */
+.date-cell { display:flex; flex-direction:column; align-items:center; gap:1px; }
+.d-day-badge { font-size:10px; font-weight:bold; color:#fff; background:#90a4ae; padding:1px 4px; border-radius:3px; display:inline-block; min-width:28px; line-height: 1.2;}
+.d-day-badge.new { background: #ff9800; } 
+.d-day-badge.old { background: #607d8b; } 
 
-/* === D-Day 스타일 === */
-.date-cell { display:flex; flex-direction:column; align-items:center; gap:2px; }
-.d-day-badge { font-size:10px; font-weight:bold; color:#fff; background:#888; padding:1px 4px; border-radius:4px; display:inline-block; min-width:30px;}
-.d-day-badge.new { background: #ff9800; } /* 7일 이내 */
-.d-day-badge.old { background: #607d8b; } /* 오래된 것 */
-
-/* === 컬럼 폭 설정 === */
-#grid td > input { width: 100%; padding: 2px; box-sizing: border-box; text-align: right; border:none; background: transparent;}
-#grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
-#grid td input.name { text-align: left; }
-#grid td input.code { text-align: center; }
-#grid td input[type="date"] { font-size: 10px; text-align: center; }
-
-col.col-no { width: 30px; }
-col.col-group { width: 36px; }
-col.col-code { width: 55px; }
-col.col-name { width: 90px; }
-col.col-date { width: 85px; } 
-col.col-avg { width: 65px; }
-col.col-qty { width: 35px; }
-col.col-inv { width: 75px; }
-col.col-target { width: 85px; }
-col.col-cur { width: 75px; }
-col.col-fix { width: 70px; }
-col.col-profit { width: 70px; }
-col.col-percent { width: 55px; }
-col.col-act { width: 140px; }
+/* === 컬럼 폭 설정 (적절히 조절) === */
+col.col-no { width: 32px; }
+col.col-group { width: 40px; }
+col.col-code { width: 60px; }
+col.col-name { width: 100px; } 
+col.col-date { width: 90px; } 
+col.col-avg { width: 70px; }
+col.col-qty { width: 40px; }
+col.col-inv { width: 80px; }
+col.col-target { width: 90px; }
+col.col-cur { width: 80px; }
+col.col-fix { width: 75px; }
+col.col-profit { width: 75px; }
+col.col-percent { width: 60px; }
+col.col-act { width: 130px; }
 
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
@@ -100,22 +100,22 @@ col.col-act { width: 140px; }
 
 <div>
   <details>
-    <summary style="cursor:pointer; margin-bottom:4px; font-weight:bold; color:#555;">⚙️ 설정 (API/프록시)</summary>
-    <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px;">
+    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/프록시)</summary>
+    <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
-      <div style="margin-top:4px; display:flex; gap:10px; flex-wrap:wrap;">
-        <label>모드 <select id="apiMode"><option value="auto" selected>자동</option><option value="multi">멀티</option><option value="single">단건</option></select></label>
-        <label>Code <input id="codeParam" value="code" style="width:40px"></label>
-        <label>Price <input id="priceKey" value="price" style="width:40px"></label>
-        <label>주기(초) <input id="pollSec" type="number" value="10" min="2" style="width:40px"></label>
+      <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <label>모드 <select id="apiMode" style="height:26px;"><option value="auto" selected>자동</option><option value="multi">멀티</option><option value="single">단건</option></select></label>
+        <label>Code <input id="codeParam" value="code" style="width:45px"></label>
+        <label>Price <input id="priceKey" value="price" style="width:45px"></label>
+        <label>주기(초) <input id="pollSec" type="number" value="10" min="2" style="width:45px"></label>
         <button id="resetBtn" style="margin-left:auto;">⚠️데이터 초기화</button>
       </div>
     </div>
   </details>
   
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
     <div style="display:flex; align-items:center; gap:10px;">
-      <label><input type="checkbox" id="liveToggle" checked> <b>실시간</b></label>
+      <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
     </div>
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총 손익: 0</div>
@@ -127,21 +127,21 @@ col.col-act { width: 140px; }
     <button class="filter-btn" data-filter="long">장투만</button>
     <button class="filter-btn" data-filter="all">전체</button>
     
-    <div style="width:1px; height:20px; background:#ccc; margin:0 4px;"></div>
+    <div style="width:1px; height:20px; background:#ccc; margin:0 6px;"></div>
     
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
         <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
     </label>
   </div>
 
-  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:5px;">
-    <button id="addRowBtn" style="font-weight:bold; color:blue;">+추가</button>
-    <button id="saveBtn">저장</button>
-    <button id="cloudSaveBtn">☁️저장</button>
-    <button id="cloudLoadBtn">☁️불러오기</button>
-    <button id="copyTxtBtn">텍스트복사</button>
-    <button id="btnSortEmptyQty">정렬(운영중↑)</button>
-    <button id="btnSetTargets">목표가세팅</button>
+  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
+    <button id="addRowBtn" style="font-weight:bold; color:#1565c0; padding: 4px 10px;">+ 종목추가</button>
+    <button id="saveBtn" style="padding: 4px 10px;">저장</button>
+    <button id="cloudSaveBtn" style="padding: 4px 10px;">☁️저장</button>
+    <button id="cloudLoadBtn" style="padding: 4px 10px;">☁️불러오기</button>
+    <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
+    <button id="btnSortEmptyQty" style="padding: 4px 10px;">정렬(수익순)</button>
+    <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
   </div>
 </div>
 
@@ -169,15 +169,15 @@ col.col-act { width: 140px; }
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
-<div style="text-align:right; margin-top:5px; font-weight:bold;">
+<div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
   <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> (수수료 0.26% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
-  <div style="background:#fff; width:90%; max-width:600px; max-height:85vh; display:flex; flex-direction:column; padding:15px; border-radius:8px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
+  <div style="background:#fff; width:95%; max-width:650px; max-height:85vh; display:flex; flex-direction:column; padding:15px; border-radius:10px; box-shadow:0 4px 15px rgba(0,0,0,0.3);">
     <div style="display:flex; justify-content:space-between; margin-bottom:10px; flex-shrink:0;">
-      <strong id="chartTitle">차트</strong>
-      <button onclick="document.getElementById('chartModal').style.display='none'">닫기</button>
+      <strong id="chartTitle" style="font-size:16px;">차트</strong>
+      <button onclick="document.getElementById('chartModal').style.display='none'" style="padding:4px 8px; font-size:13px;">닫기</button>
     </div>
     <div style="flex:1; min-height:0; overflow:hidden;">
       <canvas id="histChart" style="width:100%; height:100%;"></canvas>
@@ -307,8 +307,8 @@ function render(){
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
       
       <td class="cur-cell">
-        <input class="cur" value="${r.cur?fmt(r.cur):''}">
-        <div class="delta-wrap"></div> <div class="trend-dots"></div> </td>
+        <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
+        <div class="trend-dots"></div> </td>
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}"></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
@@ -540,33 +540,6 @@ function updateHistoryVisuals(tr, code, cur){
   const hist = loadHist(code);
   if(!hist.length) return;
 
-  const getPriceAgo = (ms) => {
-    const target = Date.now() - ms;
-    for(let i=hist.length-1; i>=0; i--){
-      if(hist[i].t <= target) return hist[i].p;
-    }
-    return null;
-  };
-
-  const p5m = getPriceAgo(5*60*1000);
-  const p1h = getPriceAgo(60*60*1000);
-  
-  let html = '';
-  const mkBadge = (lbl, oldP) => {
-    if(!oldP) return '';
-    const diff = cur - oldP;
-    if(diff === 0) return '';
-    const cls = diff > 0 ? 'delta-pos' : 'delta-neg';
-    const sign = diff > 0 ? '+' : '';
-    return `<span class="delta-badge ${cls}">${lbl} ${sign}${diff}</span>`;
-  };
-  
-  html += mkBadge('5m', p5m);
-  html += mkBadge('1h', p1h);
-  
-  const dWrap = tr.querySelector('.delta-wrap');
-  if(dWrap) dWrap.innerHTML = html;
-
   const dotsBox = tr.querySelector('.trend-dots');
   if(dotsBox && hist.length >= 2) {
     const recent = hist.slice(-6); 
@@ -679,22 +652,15 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // [수정된 기능] 보이는 데이터만 복사 (필터링 적용)
+  // [수정된 기능] 보이는 데이터만 복사
   $('#copyTxtBtn').addEventListener('click', () => {
     const headers = ['구분', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '매도가', '손익', '수익률'];
     
-    // 현재 필터 상태 확인
     const hideSold = $('#hideSoldToggle').checked;
-
-    // 필터링된 데이터 추출
     const visibleRows = rows.filter(r => {
-        // 1. 단타/장투 탭 필터
         if(currentFilter === 'short' && r.group === 'long') return false;
         if(currentFilter === 'long' && r.group === 'short') return false;
-
-        // 2. 매도숨김 필터
         if(hideSold && r.fix > 0) return false;
-
         return true;
     });
 
