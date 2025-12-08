@@ -415,18 +415,25 @@ function updateRowCalculation(tr, r){
   updateHistoryVisuals(tr, r.code, r.cur);
 }
 
-// [수정] 상단 배지 업데이트 로직 추가
+// [수정] 상단 배지 업데이트 로직 수정 (버그 픽스)
 function updateTotalProfit(){
   let totalProfit = 0; 
   let operatingProfit = 0; 
 
   rows.forEach(r => {
+    // 필터링 (단타/장투)
     if(currentFilter === 'short' && r.group === 'long') return;
     if(currentFilter === 'long' && r.group === 'short') return;
     
     const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
     totalProfit += won; 
-    if(r.qty > 0 && r.fix == 0) operatingProfit += won; 
+    
+    // [버그 수정] fix가 없거나(undefined, null) 0이면 운영 중으로 판단
+    // 기존: if(r.qty > 0 && r.fix == 0) -> 버그 원인
+    // 변경: if(r.qty > 0 && !r.fix) -> 빈값도 OK
+    if(r.qty > 0 && !r.fix) {
+        operatingProfit += won; 
+    }
   });
   
   // 1. 하단 라벨 업데이트
@@ -435,13 +442,11 @@ function updateTotalProfit(){
   const elOperating = $('#operatingProfit');
   if(elOperating) { elOperating.textContent = fmt(Math.round(operatingProfit)); elOperating.className = operatingProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
   
-  // 2. [수정] 상단 배지 업데이트 (총 손익 + 운영 손익)
+  // 2. 상단 배지 업데이트
   const topEl = $('#topTotal');
   if(topEl) {
-    const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2'; // 운영 손익 색상 (빨강/파랑)
-    // 보기 좋게 '총: 000 (운영: 000)' 형태로 구성
+    const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2'; 
     topEl.innerHTML = `총: ${fmt(Math.round(totalProfit))} <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>`;
-    // 전체 테두리 색상은 총 손익 기준
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
 }
