@@ -506,6 +506,23 @@ async function fetchPrices(){
   } catch(e) { console.error(e); setStatus('에러: '+e.message, false); }
 }
 
+let timerId = null;
+function startPolling(){
+  if(timerId) clearInterval(timerId);
+  const sec = Math.max(2, Number($('#pollSec').value)||10);
+  timerId = setInterval(() => {
+    if($('#liveToggle').checked) fetchPrices();
+  }, sec * 1000);
+  if($('#liveToggle').checked) fetchPrices();
+}
+
+function setStatus(msg, isOk){
+  const el = $('#status');
+  if(el) {
+    el.textContent = msg;
+    el.style.color = isOk ? 'green' : 'red';
+  }
+}
 // ==========================================
 // 5. 히스토리 & 차트 & 이벤트
 // ==========================================
