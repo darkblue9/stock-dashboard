@@ -155,6 +155,9 @@ col.col-act { width: 130px; }
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
         <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
     </label>
+    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
+    <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
+</label>
     <span style="font-size:11px; color:#666; margin-left:4px;">*숨겨도 총손익엔 포함됨</span>
   </div>
 
@@ -286,114 +289,233 @@ function saveSettings(){
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
 // ==========================================
-// 3. 렌더링
+// 3. 렌더링 (종목 합산 기능 추가됨)
 // ==========================================
+
+// [신규] 같은 종목끼리 뭉쳐주는 도우미 함수
+function aggregateRows(originalRows) {
+    const map = new Map();
+    const result = [];
+
+    originalRows.forEach((r, originalIndex) => {
+        // 1. 그룹 필터링 (단타/장투 등)
+        if(currentFilter === 'short' && r.group === 'long') return;
+        if(currentFilter === 'long' && r.group === 'short') return;
+        
+        // 2. 매도된 종목(fix > 0)은 합산에서 제외하고 그냥 보여줌 (복잡도 방지)
+        const isSold = (r.fix > 0);
+        const hideSold = $('#hideSoldToggle').checked;
+        if(hideSold && isSold) return;
+
+        if (isSold) {
+            result.push({ ...r, _isAgg: false, _idx: originalIndex });
+            return;
+        }
+
+        // 3. 합산 로직 (같은 코드 & 같은 그룹끼리 뭉침)
+        const key = r.code + '_' + r.group; 
+        if (!map.has(key)) {
+            map.set(key, {
+                ...r,
+                _idx: originalIndex, // 대표 인덱스 (수정 시 사용)
+                _isAgg: false,
+                _count: 1,
+                _totalQty: Number(r.qty) || 0,
+                _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0)
+            });
+        } else {
+            const entry = map.get(key);
+            const curQty = Number(r.qty) || 0;
+            const curInvest = (Number(r.avg) || 0) * curQty;
+            
+            entry._isAgg = true; // 합산된 상태임
+            entry._count++;
+            entry._totalQty += curQty;
+            entry._totalInvest += curInvest;
+            
+            // 보유일: 가장 오래된 날짜(먼저 산 날짜) 유지
+            if (r.date < entry.date) entry.date = r.date;
+        }
+    });
+
+    // 맵에서 꺼내서 결과 배열로 변환
+    map.forEach(val => {
+        if (val._isAgg) {
+            // 평단가 재계산 (총 투입금 / 총 주수)
+            val.qty = val._totalQty;
+            val.avg = val._totalQty > 0 ? Math.round(val._totalInvest / val._totalQty) : 0;
+            val.name = val.name + ` (합:${val._count})`; // 이름 옆에 표시
+        }
+        result.push(val);
+    });
+
+    // 정렬 (기존 순서 유지하려 노력하되 합산된 건 위로)
+    return result.sort((a,b) => a._idx - b._idx);
+}
+
+
 function render(){
   const tb=$('#tbody'); 
   if(!tb) return;
   tb.innerHTML='';
   
-  const hideSold = $('#hideSoldToggle').checked;
+  const useMerge = $('#mergeToggle').checked; // 합산 모드 켜져있는지 확인
+  
+  // 합산 모드면 aggregateRows를 거치고, 아니면 기존 로직대로 필터링만 함
+  let displayRows = [];
+  
+  if (useMerge) {
+      displayRows = aggregateRows(rows);
+  } else {
+      // 기존 단순 필터링 로직
+      const hideSold = $('#hideSoldToggle').checked;
+      rows.forEach((r, i) => {
+          if(currentFilter === 'short' && r.group === 'long') return;
+          if(currentFilter === 'long' && r.group === 'short') return;
+          if(hideSold && r.fix > 0) return;
+          displayRows.push({ ...r, _idx: i, _isAgg: false });
+      });
+  }
+
   let displayIdx = 0;
 
-  rows.forEach((r,i)=>{
-    // 1. 그룹 필터 적용
-    if(currentFilter === 'short' && r.group === 'long') return;
-    if(currentFilter === 'long' && r.group === 'short') return;
-    
-    // 2. 매도숨김 적용 (화면 표시에서만!)
-    const isSold = (r.fix > 0);
-    if(hideSold && isSold) return;
-
+  displayRows.forEach((r) => {
     displayIdx++;
+    const realIndex = r._idx; // 실제 데이터 배열에서의 인덱스 (수정 시 필요)
+    
     const tr=document.createElement('tr');
-    tr.dataset.idx = i;
+    tr.dataset.idx = realIndex;
+    
+    // 합산된 행은 배경색을 살짝 다르게 줘서 티를 냄
+    if(r._isAgg) tr.style.background = "#fff8e1"; 
+
     const isLong = r.group === 'long';
     const grpClass = isLong ? 'grp-long' : 'grp-short';
     const grpText = isLong ? '장' : '단';
     const stepVal = (r.cur >= 100000) ? 500 : 100;
     
     const dDayStr = getDDay(r.date);
-    const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day' || dDayStr.startsWith('D+1') || dDayStr.startsWith('D+2')) ? 'new' : 'old';
+    const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day') ? 'new' : 'old';
     const dDayBadge = dDayStr ? `<span class="d-day-badge ${dDayClass}">${dDayStr}</span>` : '';
 
-    // 메모 기능
     const hasMemo = r.memo && r.memo.trim().length > 0;
     const memoClass = hasMemo ? 'has-memo' : '';
     const memoTooltip = hasMemo ? `<div class="memo-tooltip">${r.memo}</div>` : '';
 
+    // 합산된 행은 일부 수정 불가능하게 막음 (readonly)
+    const readOnlyAttr = r._isAgg ? 'readonly style="color:#aaa"' : '';
+    const noClickAction = r._isAgg ? '' : 'onclick="alert(\'합산 모드에서는 개별 삭제가 불가능합니다.\')"';
+
     tr.innerHTML=`
-      <td class="row-no ${memoClass}" title="클릭하여 메모 수정">
-        ${displayIdx}<span class="memo-indicator"></span>
-        ${memoTooltip}
+      <td class="row-no ${memoClass}" title="No">
+        ${displayIdx}<span class="memo-indicator"></span>${memoTooltip}
       </td>
-      <td><button class="grp-btn ${grpClass}">${grpText}</button></td>
-      <td><input class="code" value="${r.code||''}"></td>
-      <td><input class="name" value="${r.name||''}"></td>
-      <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}"></div></td>
-      <td><input class="avg" value="${r.avg?fmt(r.avg):''}"></td>
-      <td><input class="qty" value="${r.qty||''}"></td>
+      <td><button class="grp-btn ${grpClass}" ${r._isAgg ? 'disabled style="opacity:0.5"' : ''}>${grpText}</button></td>
+      <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
+      <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
+      
+      <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
+
+      <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
+      <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
+      
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" step="${stepVal}" value="${r.utarget||''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
-      <td class="cur-cell"><input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;"><div class="trend-dots"></div></td>
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}"></td>
+      
+      <td class="cur-cell">
+        <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
+        <div class="trend-dots"></div> 
+      </td>
+      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
       <td>
         <span class="actions">
           <button class="chart-btn">차트</button>
-          <span class="mv"><button class="up">▲</button><button class="dn">▼</button></span>
-          <button class="del">삭제</button>
+          <span class="mv" style="${r._isAgg ? 'display:none' : ''}">
+            <button class="up">▲</button>
+            <button class="dn">▼</button>
+          </span>
+          ${r._isAgg ? '<span style="font-size:11px; color:#aaa;">묶음</span>' : '<button class="del">삭제</button>'}
         </span>
       </td>`;
     
     tb.appendChild(tr);
 
-    const bindInput = (sel, key, isNum) => {
-      const el = tr.querySelector(sel);
-      if(!el) return;
-      el.addEventListener('change', ()=>{
-        let val = el.value;
-        if(isNum) val = toNum(val);
-        rows[i][key] = val;
-        saveRows();
-        if(key === 'date') render(); 
-        else updateRowCalculation(tr, rows[i]);
-      });
-      if(isNum && el.type !== 'number') {
-        el.addEventListener('blur', ()=> el.value = rows[i][key] ? fmt(rows[i][key]) : '');
-      }
-    };
-    bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date');
-    bindInput('.avg', 'avg', true); bindInput('.qty', 'qty', true);
-    bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
-    bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
+    // --- 이벤트 바인딩 (합산 모드일 땐 일부 기능 제한) ---
+    if (!r._isAgg) {
+        // [기존] 개별 행일 때는 수정/삭제/이동 모두 가능
+        const bindInput = (sel, key, isNum) => {
+            const el = tr.querySelector(sel);
+            if(!el) return;
+            el.addEventListener('change', ()=>{
+                let val = el.value;
+                if(isNum) val = toNum(val);
+                rows[realIndex][key] = val; // 실제 데이터 수정
+                saveRows();
+                if(key === 'date') render(); 
+                else updateRowCalculation(tr, rows[realIndex]);
+            });
+            if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
+        };
+        bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date');
+        bindInput('.avg', 'avg', true); bindInput('.qty', 'qty', true);
+        bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
+        bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
 
-    // 메모 클릭
-    const noCell = tr.querySelector('.row-no');
-    noCell.addEventListener('click', (e) => {
-        if(e.target.classList.contains('memo-tooltip')) return;
-        const newMemo = prompt("📝 메모를 입력하세요:", r.memo || "");
-        if(newMemo !== null) { rows[i].memo = newMemo; saveRows(); render(); }
-    });
+        // 삭제/이동 버튼
+        tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
+        const btnUp = tr.querySelector('.up');
+        if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
+        const btnDn = tr.querySelector('.dn');
+        if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
 
-    const btnGrp = tr.querySelector('.grp-btn');
-    if(btnGrp) btnGrp.onclick = () => { r.group = (r.group === 'short') ? 'long' : 'short'; saveRows(); render(); };
-    const btnDel = tr.querySelector('.del');
-    if(btnDel) btnDel.onclick = () => { if(confirm('삭제?')) { rows.splice(i,1); saveRows(); render(); } };
-    const btnUp = tr.querySelector('.up');
-    if(btnUp) btnUp.onclick = () => { if(i>0) { [rows[i-1], rows[i]] = [rows[i], rows[i-1]]; saveRows(); render(); } };
-    const btnDn = tr.querySelector('.dn');
-    if(btnDn) btnDn.onclick = () => { if(i<rows.length-1) { [rows[i+1], rows[i]] = [rows[i], rows[i+1]]; saveRows(); render(); } };
-    const btnChart = tr.querySelector('.chart-btn');
-    if(btnChart) btnChart.onclick = () => showChart(r.code, r.name);
-    
-    updateRowCalculation(tr, rows[i]);
+        // 그룹 변경
+        tr.querySelector('.grp-btn').onclick = () => { rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; saveRows(); render(); };
+        
+        // 메모 기능 (개별 행만)
+        tr.querySelector('.row-no').addEventListener('click', (e) => {
+             if(e.target.classList.contains('memo-tooltip')) return;
+             const newMemo = prompt("📝 메모:", rows[realIndex].memo || "");
+             if(newMemo !== null) { rows[realIndex].memo = newMemo; saveRows(); render(); }
+        });
+
+    } else {
+        // [합산] 합산된 행은 '현재가'나 '목표가' 정도만 수정 가능하게 하거나, 단순히 보여주기만 함
+        // 여기서는 '목표가' 수정 시 그룹 내 대표(첫번째) 녀석의 목표가를 수정하도록 예시 처리
+        const bindTarget = (sel, key) => {
+            const el = tr.querySelector(sel);
+            el.addEventListener('change', () => {
+                rows[realIndex][key] = toNum(el.value); // 대표 행의 목표가 수정
+                saveRows();
+                updateRowCalculation(tr, r); // 계산 업데이트
+            });
+        };
+        bindTarget('.utarget', 'utarget');
+        bindTarget('.ltarget', 'ltarget');
+    }
+
+    // 공통 기능: 차트 버튼
+    tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name.replace(/\s\(합:\d+\)/, ''));
+
+    // 계산 실행
+    updateRowCalculation(tr, r);
   });
   
   updateTotalProfit();
 }
+
+// [추가] 이벤트 리스너 등록 (문서 로드 시점에)
+document.addEventListener('DOMContentLoaded', () => {
+    // ... 기존 코드들 ...
+    
+    // 합산 토글 이벤트 추가 (이거 꼭 넣어야 함!)
+    const mergeToggle = $('#mergeToggle');
+    if(mergeToggle) {
+        mergeToggle.addEventListener('change', render);
+    }
+});
 
 function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0);
