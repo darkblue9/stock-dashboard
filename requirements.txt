@@ -1,0 +1,4 @@
+finance-datareader
+pandas
+sqlalchemy
+libsql-client
