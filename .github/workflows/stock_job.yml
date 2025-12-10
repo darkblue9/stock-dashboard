@@ -2,9 +2,8 @@ name: Stock Data Scraper
 
 on:
   schedule:
-    # 매일 평일(월-금) 한국 시간 16:00 (UTC 07:00)에 실행
-    - cron: '0 7 * * 1-5'
-  workflow_dispatch: # 수동으로 버튼 눌러서 실행할 수도 있게 함
+    - cron: '0 7 * * 1-5' # 평일 오후 4시
+  workflow_dispatch:      # 수동 실행 버튼
 
 jobs:
   scrape-and-save:
@@ -24,10 +23,10 @@ jobs:
         pip install -r requirements.txt
 
     - name: 스크립트 실행
+      # ▼▼▼▼▼ [여기가 핵심!] 이 부분이 빠졌거나 들여쓰기가 틀렸을 거야 ▼▼▼▼▼
       env:
-        # GitHub Repository Settings -> Secrets and variables -> Actions 에 등록해야 함
         TURSO_DB_URL: ${{ secrets.TURSO_DB_URL }}
         TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+      # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
       run: |
         python daily_scrap.py
-        
