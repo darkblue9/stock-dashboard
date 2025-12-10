@@ -184,6 +184,7 @@ col.col-act { width: 130px; }
     <col class="col-target">
     <col class="col-target">
     <col class="col-cur">
+	<col style="width: 50px;"> <col class="col-fix">
     <col class="col-fix">
     <col class="col-profit">
     <col class="col-percent">
@@ -192,7 +193,7 @@ col.col-act { width: 130px; }
   <thead><tr>
     <th>No</th><th>구분</th><th>코드</th><th>이름</th><th>보유일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
-    <th>상목표</th><th>하목표</th><th>현재가</th><th>매도가</th><th>손익</th><th>%</th><th>동작</th>
+    <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th><th>손익</th><th>%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
@@ -353,21 +354,18 @@ function aggregateRows(originalRows) {
     return result.sort((a,b) => a._idx - b._idx);
 }
 
-
 function render(){
   const tb=$('#tbody'); 
   if(!tb) return;
   tb.innerHTML='';
   
-  const useMerge = $('#mergeToggle').checked; // 합산 모드 켜져있는지 확인
-  
-  // 합산 모드면 aggregateRows를 거치고, 아니면 기존 로직대로 필터링만 함
+  const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
   
+  // 합산 모드 로직 (기존과 동일하되 dRate 처리 추가)
   if (useMerge) {
       displayRows = aggregateRows(rows);
   } else {
-      // 기존 단순 필터링 로직
       const hideSold = $('#hideSoldToggle').checked;
       rows.forEach((r, i) => {
           if(currentFilter === 'short' && r.group === 'long') return;
@@ -381,30 +379,27 @@ function render(){
 
   displayRows.forEach((r) => {
     displayIdx++;
-    const realIndex = r._idx; // 실제 데이터 배열에서의 인덱스 (수정 시 필요)
-    
+    const realIndex = r._idx;
     const tr=document.createElement('tr');
     tr.dataset.idx = realIndex;
-    
-    // 합산된 행은 배경색을 살짝 다르게 줘서 티를 냄
     if(r._isAgg) tr.style.background = "#fff8e1"; 
 
     const isLong = r.group === 'long';
     const grpClass = isLong ? 'grp-long' : 'grp-short';
     const grpText = isLong ? '장' : '단';
     const stepVal = (r.cur >= 100000) ? 500 : 100;
-    
     const dDayStr = getDDay(r.date);
     const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day') ? 'new' : 'old';
     const dDayBadge = dDayStr ? `<span class="d-day-badge ${dDayClass}">${dDayStr}</span>` : '';
-
     const hasMemo = r.memo && r.memo.trim().length > 0;
     const memoClass = hasMemo ? 'has-memo' : '';
     const memoTooltip = hasMemo ? `<div class="memo-tooltip">${r.memo}</div>` : '';
-
-    // 합산된 행은 일부 수정 불가능하게 막음 (readonly)
     const readOnlyAttr = r._isAgg ? 'readonly style="color:#aaa"' : '';
-    const noClickAction = r._isAgg ? '' : 'onclick="alert(\'합산 모드에서는 개별 삭제가 불가능합니다.\')"';
+
+    // [신규] 일일 등락률 스타일링
+    const dr = r.dRate || 0;
+    const drClass = dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : '');
+    const drStr = (dr > 0 ? '+' : '') + dr + '%';
 
     tr.innerHTML=`
       <td class="row-no ${memoClass}" title="No">
@@ -413,13 +408,10 @@ function render(){
       <td><button class="grp-btn ${grpClass}" ${r._isAgg ? 'disabled style="opacity:0.5"' : ''}>${grpText}</button></td>
       <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
       <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
-      
       <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
-
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
       <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
-      
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" step="${stepVal}" value="${r.utarget||''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
       
@@ -427,6 +419,8 @@ function render(){
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
       </td>
+      <td><span style="font-size:11px;" class="${drClass}">${drStr}</span></td>
+
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
       <td><span class="pw">0</span></td>
       <td><span class="pp">0%</span></td>
@@ -434,8 +428,7 @@ function render(){
         <span class="actions">
           <button class="chart-btn">차트</button>
           <span class="mv" style="${r._isAgg ? 'display:none' : ''}">
-            <button class="up">▲</button>
-            <button class="dn">▼</button>
+            <button class="up">▲</button><button class="dn">▼</button>
           </span>
           ${r._isAgg ? '<span style="font-size:11px; color:#aaa;">묶음</span>' : '<button class="del">삭제</button>'}
         </span>
@@ -443,16 +436,16 @@ function render(){
     
     tb.appendChild(tr);
 
-    // --- 이벤트 바인딩 (합산 모드일 땐 일부 기능 제한) ---
+    // ... (이벤트 바인딩 코드는 기존과 동일, 생략 없이 유지 필요하면 말해줘) ...
+    // 편의상 기존 코드의 이벤트 바인딩 부분은 그대로 둠 (아래 bindInput 등)
     if (!r._isAgg) {
-        // [기존] 개별 행일 때는 수정/삭제/이동 모두 가능
         const bindInput = (sel, key, isNum) => {
             const el = tr.querySelector(sel);
             if(!el) return;
             el.addEventListener('change', ()=>{
                 let val = el.value;
                 if(isNum) val = toNum(val);
-                rows[realIndex][key] = val; // 실제 데이터 수정
+                rows[realIndex][key] = val; 
                 saveRows();
                 if(key === 'date') render(); 
                 else updateRowCalculation(tr, rows[realIndex]);
@@ -464,45 +457,32 @@ function render(){
         bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
         bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
 
-        // 삭제/이동 버튼
         tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
         const btnUp = tr.querySelector('.up');
         if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
         const btnDn = tr.querySelector('.dn');
         if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
-
-        // 그룹 변경
         tr.querySelector('.grp-btn').onclick = () => { rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; saveRows(); render(); };
-        
-        // 메모 기능 (개별 행만)
         tr.querySelector('.row-no').addEventListener('click', (e) => {
              if(e.target.classList.contains('memo-tooltip')) return;
              const newMemo = prompt("📝 메모:", rows[realIndex].memo || "");
              if(newMemo !== null) { rows[realIndex].memo = newMemo; saveRows(); render(); }
         });
-
     } else {
-        // [합산] 합산된 행은 '현재가'나 '목표가' 정도만 수정 가능하게 하거나, 단순히 보여주기만 함
-        // 여기서는 '목표가' 수정 시 그룹 내 대표(첫번째) 녀석의 목표가를 수정하도록 예시 처리
         const bindTarget = (sel, key) => {
             const el = tr.querySelector(sel);
             el.addEventListener('change', () => {
-                rows[realIndex][key] = toNum(el.value); // 대표 행의 목표가 수정
+                rows[realIndex][key] = toNum(el.value); 
                 saveRows();
-                updateRowCalculation(tr, r); // 계산 업데이트
+                updateRowCalculation(tr, r); 
             });
         };
         bindTarget('.utarget', 'utarget');
         bindTarget('.ltarget', 'ltarget');
     }
-
-    // 공통 기능: 차트 버튼
     tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name.replace(/\s\(합:\d+\)/, ''));
-
-    // 계산 실행
     updateRowCalculation(tr, r);
   });
-  
   updateTotalProfit();
 }
 
@@ -574,7 +554,7 @@ function updateTotalProfit(){
 }
 
 // ==========================================
-// 4. API 폴링 (최적화 버전)
+// 4. API 폴링 (일일% 데이터 수신 추가)
 // ==========================================
 async function fetchPrices(){
   if(!rows.length) return;
@@ -582,7 +562,7 @@ async function fetchPrices(){
   const codes = activeRows.map(r => r.code).filter(c => c && c.length >= 6);
 
   if(!codes.length) {
-      rows.forEach(r => { if(r.fix > 0 && r.cur !== 0) { r.cur = 0; } });
+      rows.forEach(r => { if(r.fix > 0 && r.cur !== 0) { r.cur = 0; r.dRate = 0; } });
       setStatus('활성 종목 없음', true);
       return;
   }
@@ -603,22 +583,34 @@ async function fetchPrices(){
     const data = json.data || [];
     
     const priceMap = {};
+    const rateMap = {}; // [신규] 등락률 맵
+    
     data.forEach(d => {
       const code = d.code || d.cd || d.symbol;
       const price = d.price || d.nv || d.last;
-      if(code) priceMap[code] = Number(price);
+      const rate = d.day_rate || d.rate || 0; // Worker에서 보낸 day_rate
+      if(code) {
+          priceMap[code] = Number(price);
+          rateMap[code] = Number(rate);
+      }
     });
 
     let changed = false;
     rows.forEach(r => {
-      if(r.fix > 0) { if(r.cur !== 0) { r.cur = 0; changed = true; } return; }
+      if(r.fix > 0) { if(r.cur !== 0) { r.cur = 0; r.dRate = 0; changed = true; } return; }
       if(!r.code) return;
       const key = r.code.replace('.KS','').replace('.KQ','');
-      if(priceMap[key]) {
+      
+      if(priceMap[key] !== undefined) {
         if(r.cur !== priceMap[key]) {
           r.cur = priceMap[key];
           addSnapshot(r.code, r.cur); 
           changed = true;
+        }
+        // [신규] 일일 등락률 업데이트
+        if(r.dRate !== rateMap[key]) {
+            r.dRate = rateMap[key];
+            changed = true;
         }
       }
     });
