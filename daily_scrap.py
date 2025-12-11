@@ -47,13 +47,17 @@ if db_url and db_auth_token:
         db_url = "sqlite+" + db_url
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
-    try:
-        # [수정] URL 뒤에 파라미터 붙이는 방식 폐기.
-        # 대신 connect_args로 토큰을 정중하게 건넨다.
-        engine = create_engine(
-            db_url, 
-            connect_args={'authToken': db_auth_token}
-        )
+t   ry:
+        # [수정] 다시 URL에 포함시키는 방식으로 복귀!
+        # 이제 토큰값(db_auth_token)이 정상이라서 이 방식이 작동할 거야.
+        
+        # 만약 URL 끝에 '/'가 있으면 제거 (URL 꼬임 방지)
+        if db_url.endswith('/'):
+            db_url = db_url.rstrip('/')
+            
+        connection_string = f"{db_url}?authToken={db_auth_token}&secure=true"
+        
+        engine = create_engine(connection_string)
         
         with engine.connect() as conn:
             result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
