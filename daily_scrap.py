@@ -3,7 +3,6 @@ import pandas as pd
 from datetime import datetime
 import os
 from sqlalchemy import create_engine
-from urllib.parse import quote_plus
 
 # 1. 오늘 날짜 확인
 today = datetime.now().strftime('%Y%m%d')
@@ -35,55 +34,47 @@ result_df['상장주식수'] = df_rise['Stocks']
 
 print(f"상승 종목 {len(result_df)}개 발견. DB 저장을 시도합니다.")
 
-# 5. Turso DB 접속 및 저장
-# [수정] URL과 토큰 모두 앞뒤 공백/줄바꿈 확실히 제거!
-db_url = os.environ.get("TURSO_DB_URL", "").strip()
+# 5. Turso DB 접속 설정 (HTTPS 강제 모드)
+db_url_env = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
-if db_url and db_auth_token:
-    print(f"DB 접속 시도: URL={db_url}, Token Length={len(db_auth_token)}")
-    
-    try:
-        # 1. URL 스키마 보정 (https -> sqlite+libsql)
-        if db_url.startswith("https://"):
-            db_url = db_url.replace("https://", "libsql://")
-        if not db_url.startswith("sqlite+libsql://"):
-             # libsql:// 로 시작하면 sqlite+libsql:// 로 변경
-            db_url = db_url.replace("libsql://", "sqlite+libsql://")
-
-        # 2. URL 끝에 붙은 기존 파라미터나 슬래시 정리
-        if '?' in db_url:
-            db_url = db_url.split('?')[0]
-        if not db_url.endswith('/'):
-            db_url = db_url + '/'
-            
-        # 3. 토큰 인코딩 (필수!)
-        # 아까는 줄바꿈 때문에 실패했지만, 원래는 이게 정석임.
-        from urllib.parse import quote_plus
-        encoded_token = quote_plus(db_auth_token)
-        
-        # 4. 최종 URL 생성
-        connection_string = f"{db_url}?authToken={encoded_token}&secure=true"
-        
-        # 디버깅: URL 중간은 가리고 구조만 확인
-        print(f"생성된 Connection String (일부): {connection_string[:30]}...secure=true")
-        
-        engine = create_engine(connection_string)
-        
-        with engine.connect() as conn:
-            result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
-            
-        print("✅ DB 저장 성공! (Success)")
-        
-    except Exception as e:
-        print("❌ DB 저장 실패.")
-        print(f"에러 메시지: {e}")
-        exit(1)
-
-else:
-    print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
+if not db_url_env or not db_auth_token:
+    print("❌ DB 접속 정보(Secrets)가 없습니다.")
     exit(1)
 
+# [핵심] URL 프로토콜을 강제로 https:// 로 변경
+# libsql:// 이나 wss:// 로 시작하면 무조건 https:// 로 바꿔서 웹소켓 오류 방지
+if "libsql://" in db_url_env:
+    real_db_url = db_url_env.replace("libsql://", "https://")
+elif "wss://" in db_url_env:
+    real_db_url = db_url_env.replace("wss://", "https://")
 else:
-    print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
+    real_db_url = db_url_env
+
+# https://가 없으면 붙여줌
+if not real_db_url.startswith("https://"):
+    real_db_url = f"https://{real_db_url}"
+
+print(f"접속 프로토콜: HTTPS (WebSocket 미사용)")
+print(f"타겟 URL: {real_db_url}")
+
+try:
+    # [신의 한 수] create_engine에 주소를 넣지 말고, connect_args로 전달함.
+    # 이렇게 하면 SQLAlchemy가 주소를 멋대로 변환하지 않고 드라이버에게 직통으로 줌.
+    engine = create_engine(
+        "sqlite+libsql://",  # 드라이버만 지정
+        connect_args={
+            'url': real_db_url,
+            'authToken': db_auth_token
+        }
+    )
+    
+    with engine.connect() as conn:
+        result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
+        
+    print("✅ DB 저장 성공! (Success)")
+    
+except Exception as e:
+    print("❌ DB 저장 실패.")
+    print(f"에러 메시지: {e}")
     exit(1)
