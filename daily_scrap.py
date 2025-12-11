@@ -36,40 +36,38 @@ result_df['상장주식수'] = df_rise['Stocks']
 print(f"상승 종목 {len(result_df)}개 발견. DB 저장을 시도합니다.")
 
 # 5. Turso DB 접속 및 저장
-db_url = os.environ.get("TURSO_DB_URL")
-# [수정] 토큰 가져올 때 공백 제거(.strip()) 추가
-db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip() 
+# [수정] URL과 토큰 모두 앞뒤 공백/줄바꿈 확실히 제거!
+db_url = os.environ.get("TURSO_DB_URL", "").strip()
+db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
 if db_url and db_auth_token:
-    # [디버깅] 토큰이 진짜 들어왔는지 길이만 확인 (로그에 키 노출 금지)
     print(f"DB 접속 시도: URL={db_url}, Token Length={len(db_auth_token)}")
-
-    if db_url.startswith("libsql://"):
-        db_url = "sqlite+" + db_url
-        print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
-try:
-        # [수정 1] URL 정규화 (https -> sqlite+libsql)
+    try:
+        # 1. URL 스키마 보정 (https -> sqlite+libsql)
         if db_url.startswith("https://"):
             db_url = db_url.replace("https://", "libsql://")
         if not db_url.startswith("sqlite+libsql://"):
+             # libsql:// 로 시작하면 sqlite+libsql:// 로 변경
             db_url = db_url.replace("libsql://", "sqlite+libsql://")
 
-        # [수정 2] URL 뒤에 붙은 잡다한 파라미터(?...) 제거하고 순수 주소만 남기기
+        # 2. URL 끝에 붙은 기존 파라미터나 슬래시 정리
         if '?' in db_url:
             db_url = db_url.split('?')[0]
+        if not db_url.endswith('/'):
+            db_url = db_url + '/'
             
-        # [핵심] 토큰을 URL이 아니라 '환경변수'로 직접 등록!
-        # 라이브러리가 알아서 이 변수를 찾아 쓰도록 만듦.
-        os.environ["LIBSQL_AUTH_TOKEN"] = db_auth_token
-        os.environ["TURSO_AUTH_TOKEN"] = db_auth_token  # 혹시 몰라 둘 다 등록
+        # 3. 토큰 인코딩 (필수!)
+        # 아까는 줄바꿈 때문에 실패했지만, 원래는 이게 정석임.
+        from urllib.parse import quote_plus
+        encoded_token = quote_plus(db_auth_token)
         
-        # [수정 3] URL에는 토큰 빼고 'secure=true'만 붙임
-        connection_string = f"{db_url}?secure=true"
+        # 4. 최종 URL 생성
+        connection_string = f"{db_url}?authToken={encoded_token}&secure=true"
         
-        print(f"최종 접속 URL: {connection_string}") # 디버깅용
+        # 디버깅: URL 중간은 가리고 구조만 확인
+        print(f"생성된 Connection String (일부): {connection_string[:30]}...secure=true")
         
-        # 엔진 생성
         engine = create_engine(connection_string)
         
         with engine.connect() as conn:
@@ -81,6 +79,10 @@ try:
         print("❌ DB 저장 실패.")
         print(f"에러 메시지: {e}")
         exit(1)
+
+else:
+    print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
+    exit(1)
 
 else:
     print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
