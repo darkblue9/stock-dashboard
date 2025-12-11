@@ -29,4 +29,5 @@ jobs:
         TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
       # ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
       run: |
-        python daily_scrap.py
+        #python daily_scrap.py
+        python db_test.py
