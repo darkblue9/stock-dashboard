@@ -47,14 +47,17 @@ if db_url and db_auth_token:
         db_url = "sqlite+" + db_url
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
-    try:
-        # [수정] 다시 URL에 포함시키는 방식으로 복귀!
-        # 이제 토큰값(db_auth_token)이 정상이라서 이 방식이 작동할 거야.
-        
-        # 만약 URL 끝에 '/'가 있으면 제거 (URL 꼬임 방지)
-        if db_url.endswith('/'):
-            db_url = db_url.rstrip('/')
+try:
+        # [수정 1] URL 끝에 슬래시(/)가 없으면 강제로 추가!
+        # 슬래시가 있어야 컴퓨터가 "여기까지가 주소고, 뒤에는 토큰이구나" 하고 구별함.
+        if not db_url.endswith('/'):
+            db_url = db_url + '/'
             
+        # [수정 2] 안전장치 하나 더. 
+        # 라이브러리가 URL에서 토큰 못 찾을 때를 대비해 환경변수에 직접 꽂아줌.
+        os.environ["LIBSQL_AUTH_TOKEN"] = db_auth_token
+            
+        # URL 생성 (이제 슬래시가 있으니 안전함)
         connection_string = f"{db_url}?authToken={db_auth_token}&secure=true"
         
         engine = create_engine(connection_string)
@@ -68,6 +71,7 @@ if db_url and db_auth_token:
         print("❌ DB 저장 실패.")
         print(f"에러 메시지: {e}")
         exit(1)
+
 else:
     print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
     exit(1)
