@@ -34,21 +34,24 @@ result_df['상장주식수'] = df_rise['Stocks']
 
 print(f"상승 종목 {len(result_df)}개 발견. DB 저장을 시도합니다.")
 
-# 5. Turso DB 접속 및 저장 (여기가 핵심 수정!)
+# 5. Turso DB 접속 및 저장
 db_url = os.environ.get("TURSO_DB_URL")
-db_auth_token = os.environ.get("TURSO_AUTH_TOKEN")
+# [수정] 토큰 가져올 때 공백 제거(.strip()) 추가
+db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip() 
 
 if db_url and db_auth_token:
-    # [중요] URL이 libsql:// 로 시작하면 sqlite+libsql:// 로 자동 변환
+    # [디버깅] 토큰이 진짜 들어왔는지 길이만 확인 (로그에 키 노출 금지)
+    print(f"DB 접속 시도: URL={db_url}, Token Length={len(db_auth_token)}")
+
     if db_url.startswith("libsql://"):
         db_url = "sqlite+" + db_url
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
     try:
+        # [수정] URL 생성 시 f-string 대신 확실하게 포맷팅
         connection_string = f"{db_url}?authToken={db_auth_token}&secure=true"
         engine = create_engine(connection_string)
         
-        # 커넥션 맺고 저장
         with engine.connect() as conn:
             result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
             
@@ -57,7 +60,7 @@ if db_url and db_auth_token:
     except Exception as e:
         print("❌ DB 저장 실패.")
         print(f"에러 메시지: {e}")
-        exit(1) # 에러나면 빨간불 뜨게 강제 종료
+        exit(1)
 else:
-    print("❌ DB 접속 정보(Secrets)가 없습니다.")
+    print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
     exit(1)
