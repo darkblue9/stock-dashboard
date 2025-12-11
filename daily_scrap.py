@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime
 import os
 from sqlalchemy import create_engine
+from urllib.parse import quote_plus
 
 # 1. 오늘 날짜 확인
 today = datetime.now().strftime('%Y%m%d')
@@ -48,29 +49,38 @@ if db_url and db_auth_token:
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
 try:
-        # [수정 1] URL 끝에 슬래시(/)가 없으면 강제로 추가!
-        # 슬래시가 있어야 컴퓨터가 "여기까지가 주소고, 뒤에는 토큰이구나" 하고 구별함.
-        if not db_url.endswith('/'):
-            db_url = db_url + '/'
-            
-        # [수정 2] 안전장치 하나 더. 
-        # 라이브러리가 URL에서 토큰 못 찾을 때를 대비해 환경변수에 직접 꽂아줌.
-        os.environ["LIBSQL_AUTH_TOKEN"] = db_auth_token
-            
-        # URL 생성 (이제 슬래시가 있으니 안전함)
-        connection_string = f"{db_url}?authToken={db_auth_token}&secure=true"
-        
-        engine = create_engine(connection_string)
-        
-        with engine.connect() as conn:
-            result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
-            
-        print("✅ DB 저장 성공! (Success)")
-        
-    except Exception as e:
-        print("❌ DB 저장 실패.")
-        print(f"에러 메시지: {e}")
-        exit(1)
+    # [수정 1] URL 스키마 확실하게 잡기 (https -> libsql 변환 등)
+    # 만약 https://로 시작하면 libsql://로 변경 (드라이버 호환성 위함)
+    if db_url.startswith("https://"):
+        db_url = db_url.replace("https://", "libsql://")
+
+    if not db_url.startswith("sqlite+libsql://"):
+         # 기존 libsql:// 등을 sqlite+libsql:// 로 변경
+        db_url = db_url.replace("libsql://", "sqlite+libsql://")
+
+    # [수정 2] URL 끝에 슬래시(/) 없으면 추가
+    if not db_url.endswith('/'):
+        db_url = db_url + '/'
+
+    # [핵심 수정] 토큰을 안전하게 포장(Encoding)
+    # 토큰 안의 '=', '+' 같은 특수문자가 URL을 망가뜨리지 않게 변환함
+    encoded_token = quote_plus(db_auth_token)
+
+    # 포장된 토큰으로 URL 생성
+    connection_string = f"{db_url}?authToken={encoded_token}&secure=true"
+
+    # 엔진 생성
+    engine = create_engine(connection_string)
+
+    with engine.connect() as conn:
+        result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
+
+    print("✅ DB 저장 성공! (Success)")
+
+except Exception as e:
+    print("❌ DB 저장 실패.")
+    print(f"에러 메시지: {e}")
+    exit(1)
 
 else:
     print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
