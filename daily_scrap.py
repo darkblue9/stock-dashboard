@@ -47,7 +47,7 @@ if db_url and db_auth_token:
         db_url = "sqlite+" + db_url
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
-t   ry:
+    try:
         # [수정] 다시 URL에 포함시키는 방식으로 복귀!
         # 이제 토큰값(db_auth_token)이 정상이라서 이 방식이 작동할 거야.
         
