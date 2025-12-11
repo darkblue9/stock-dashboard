@@ -49,38 +49,38 @@ if db_url and db_auth_token:
         print("URL 스키마 자동 보정 완료 (libsql -> sqlite+libsql)")
     
 try:
-    # [수정 1] URL 스키마 확실하게 잡기 (https -> libsql 변환 등)
-    # 만약 https://로 시작하면 libsql://로 변경 (드라이버 호환성 위함)
-    if db_url.startswith("https://"):
-        db_url = db_url.replace("https://", "libsql://")
+        # [수정 1] URL 정규화 (https -> sqlite+libsql)
+        if db_url.startswith("https://"):
+            db_url = db_url.replace("https://", "libsql://")
+        if not db_url.startswith("sqlite+libsql://"):
+            db_url = db_url.replace("libsql://", "sqlite+libsql://")
 
-    if not db_url.startswith("sqlite+libsql://"):
-         # 기존 libsql:// 등을 sqlite+libsql:// 로 변경
-        db_url = db_url.replace("libsql://", "sqlite+libsql://")
-
-    # [수정 2] URL 끝에 슬래시(/) 없으면 추가
-    if not db_url.endswith('/'):
-        db_url = db_url + '/'
-
-    # [핵심 수정] 토큰을 안전하게 포장(Encoding)
-    # 토큰 안의 '=', '+' 같은 특수문자가 URL을 망가뜨리지 않게 변환함
-    encoded_token = quote_plus(db_auth_token)
-
-    # 포장된 토큰으로 URL 생성
-    connection_string = f"{db_url}?authToken={encoded_token}&secure=true"
-
-    # 엔진 생성
-    engine = create_engine(connection_string)
-
-    with engine.connect() as conn:
-        result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
-
-    print("✅ DB 저장 성공! (Success)")
-
-except Exception as e:
-    print("❌ DB 저장 실패.")
-    print(f"에러 메시지: {e}")
-    exit(1)
+        # [수정 2] URL 뒤에 붙은 잡다한 파라미터(?...) 제거하고 순수 주소만 남기기
+        if '?' in db_url:
+            db_url = db_url.split('?')[0]
+            
+        # [핵심] 토큰을 URL이 아니라 '환경변수'로 직접 등록!
+        # 라이브러리가 알아서 이 변수를 찾아 쓰도록 만듦.
+        os.environ["LIBSQL_AUTH_TOKEN"] = db_auth_token
+        os.environ["TURSO_AUTH_TOKEN"] = db_auth_token  # 혹시 몰라 둘 다 등록
+        
+        # [수정 3] URL에는 토큰 빼고 'secure=true'만 붙임
+        connection_string = f"{db_url}?secure=true"
+        
+        print(f"최종 접속 URL: {connection_string}") # 디버깅용
+        
+        # 엔진 생성
+        engine = create_engine(connection_string)
+        
+        with engine.connect() as conn:
+            result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
+            
+        print("✅ DB 저장 성공! (Success)")
+        
+    except Exception as e:
+        print("❌ DB 저장 실패.")
+        print(f"에러 메시지: {e}")
+        exit(1)
 
 else:
     print("❌ DB 접속 정보(Secrets)가 없습니다. (ENV 변수 확인 필요)")
