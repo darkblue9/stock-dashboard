@@ -38,7 +38,7 @@ result_df['상장주식수'] = df_rise['Stocks']
 
 print(f"상승 종목 {len(result_df)}개 발견. DB 저장을 시도합니다.")
 
-# 5. Turso DB 접속 및 저장 (분리 주입법)
+# 5. Turso DB 접속 및 저장 (검증된 v3.0 방식)
 # ------------------------------------------------------------------
 raw_url = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
@@ -48,31 +48,33 @@ if not raw_url or not db_auth_token:
     exit(1)
 
 try:
-    # [1] 주소 세탁: https:// 등 잡다한 거 다 떼고 '도메인'만 남김
+    # [1] 주소 세탁 (도메인만 추출)
+    # 예: "https://mystock.turso.io" -> "mystock.turso.io"
     clean_host = raw_url.replace("https://", "").replace("libsql://", "").replace("wss://", "")
-    
-    # 경로(/)나 파라미터(?) 제거
     if "/" in clean_host: clean_host = clean_host.split("/")[0]
     if "?" in clean_host: clean_host = clean_host.split("?")[0]
     
     print(f"타겟 호스트: {clean_host}")
 
-    # [2] 엔진 생성 (여기가 핵심!)
-    # URL: 여기에는 오직 '위치'만 적습니다. (토큰 X)
+    # [2] 엔진 생성 (성공한 방식 적용!)
+    # URL: 오직 위치만 적음 (토큰 X)
     connection_url = f"sqlite+libsql://{clean_host}/?secure=true"
     
-    # Args: 토큰은 여기서 'auth_token'이라는 이름으로 따로 줍니다.
-    # 아까 오류난 'url' 키값은 뺐습니다.
-    engine = create_engine(
-        connection_url,
-        connect_args={'auth_token': db_auth_token}
-    )
+    # Args: 토큰은 'auth_token'이라는 이름으로 뒷주머니에 넣어 전달
+    engine_args = {
+        "auth_token": db_auth_token
+    }
+    
+    engine = create_engine(connection_url, connect_args=engine_args)
     
     # [3] 저장 시도
     with engine.connect() as conn:
         result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
         
     print("✅ DB 저장 성공! (Success)")
+    
+    # 깔끔하게 엔진 종료 (혹시 모를 무한 로딩 방지)
+    engine.dispose()
     
 except Exception as e:
     print("❌ DB 저장 실패.")
