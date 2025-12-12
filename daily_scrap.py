@@ -38,9 +38,8 @@ result_df['상장주식수'] = df_rise['Stocks']
 
 print(f"상승 종목 {len(result_df)}개 발견. DB 저장을 시도합니다.")
 
-# 5. Turso DB 접속 및 저장 (환경변수 주입법)
+# 5. Turso DB 접속 및 저장 (분리 주입법)
 # ------------------------------------------------------------------
-# [1] 환경변수 가져오기
 raw_url = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
@@ -49,27 +48,27 @@ if not raw_url or not db_auth_token:
     exit(1)
 
 try:
-    # [2] 주소 세탁 (프로토콜 제거 -> 도메인만 추출)
+    # [1] 주소 세탁: https:// 등 잡다한 거 다 떼고 '도메인'만 남김
     clean_host = raw_url.replace("https://", "").replace("libsql://", "").replace("wss://", "")
+    
+    # 경로(/)나 파라미터(?) 제거
     if "/" in clean_host: clean_host = clean_host.split("/")[0]
     if "?" in clean_host: clean_host = clean_host.split("?")[0]
-
+    
     print(f"타겟 호스트: {clean_host}")
 
-    # [3] 핵심: 토큰을 URL에 넣지 않고, 환경변수에 직접 등록!
-    # libsql 드라이버는 이 변수가 있으면 알아서 갖다 씀. (배달 사고 방지)
-    os.environ["LIBSQL_AUTH_TOKEN"] = db_auth_token
-    os.environ["TURSO_AUTH_TOKEN"] = db_auth_token
-
-    # [4] URL은 토큰 없이 아주 심플하게 생성
-    # secure=true 옵션만 붙여줌
-    connection_string = f"sqlite+libsql://{clean_host}/?secure=true"
+    # [2] 엔진 생성 (여기가 핵심!)
+    # URL: 여기에는 오직 '위치'만 적습니다. (토큰 X)
+    connection_url = f"sqlite+libsql://{clean_host}/?secure=true"
     
-    print("접속 시도 중... (토큰은 환경변수로 전달됨)")
+    # Args: 토큰은 여기서 'auth_token'이라는 이름으로 따로 줍니다.
+    # 아까 오류난 'url' 키값은 뺐습니다.
+    engine = create_engine(
+        connection_url,
+        connect_args={'auth_token': db_auth_token}
+    )
     
-    # [5] 엔진 생성 및 저장
-    engine = create_engine(connection_string)
-    
+    # [3] 저장 시도
     with engine.connect() as conn:
         result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
         
@@ -78,5 +77,4 @@ try:
 except Exception as e:
     print("❌ DB 저장 실패.")
     print(f"에러 메시지: {e}")
-    # 무한 대기 방지용 강제 종료
     exit(1)
