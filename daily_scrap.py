@@ -17,13 +17,23 @@ except Exception as e:
     print(f"데이터 수집 중 에러 발생: {e}", flush=True)
     exit(1)
 
-# 3. 데이터 전처리 (빈 행만 제거, 상승/하락 필터링 X)
-# [수정] 이제 하락한 종목도 다 가져갑니다. (나중을 위해)
-df_clean = df_krx.dropna(subset=['Name', 'Close']).copy()
+# 3. 데이터 전처리 (강력한 청소 모드) 🧹
+# ---------------------------------------------------------
+# [단계 1] 'Name' 컬럼이 없는 행(NaN) 제거
+df_clean = df_krx.dropna(subset=['Name']).copy()
 
-# ------------------------------------------------------------------
-# [4] DB 접속 및 '전일거래량' 가져오기
-# ------------------------------------------------------------------
+# [단계 2] 'Name'이 빈 문자열('')이거나 공백만 있는 경우 제거
+df_clean = df_clean[df_clean['Name'].str.strip() != '']
+
+# [단계 3] 'Close'(현재가)가 숫자가 아니거나 0인 경우 제거 (거래정지 등)
+# to_numeric으로 숫자로 변환 안 되는 것들(에러 데이터)을 NaN으로 바꿈
+df_clean['Close'] = pd.to_numeric(df_clean['Close'], errors='coerce')
+df_clean = df_clean.dropna(subset=['Close'])
+
+print(f"🧹 청소 완료: 총 {len(df_clean)}개 종목만 남음 (유령 데이터 {len(df_krx) - len(df_clean)}개 삭제)", flush=True)
+# ---------------------------------------------------------
+
+# 4. DB 접속 및 '전일거래량' 가져오기
 raw_url = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
@@ -31,7 +41,6 @@ if not raw_url or not db_auth_token:
     print("❌ DB 접속 정보가 없습니다.", flush=True)
     exit(1)
 
-# 호스트 정리
 clean_host = raw_url.replace("https://", "").replace("libsql://", "").replace("wss://", "")
 if "/" in clean_host: clean_host = clean_host.split("/")[0]
 if "?" in clean_host: clean_host = clean_host.split("?")[0]
@@ -39,21 +48,21 @@ if "?" in clean_host: clean_host = clean_host.split("?")[0]
 connection_url = f"sqlite+libsql://{clean_host}/?secure=true"
 engine = create_engine(connection_url, connect_args={"auth_token": db_auth_token}, poolclass=NullPool)
 
-# 전일거래량 매핑용 사전
 prev_vol_map = {}
 
 try:
     with engine.connect() as conn:
-        # 가장 최근 날짜 찾기
+        # [추가] 혹시 DB에 남아있는 NULL 찌꺼기들이 있다면 영구 삭제
+        conn.execute(text("DELETE FROM Npaystocks WHERE 종목명 IS NULL OR 종목명 = ''"))
+        
+        # 전일거래량 조회
         query_date = text(f"SELECT MAX(날짜) FROM Npaystocks WHERE 날짜 < '{today}'")
         last_date = conn.execute(query_date).scalar()
         
         if last_date:
             print(f"📅 기준 과거 데이터: {last_date}일자", flush=True)
-            # 그 날짜의 모든 종목 거래량 가져오기
             query_vol = text(f"SELECT 종목명, 거래량 FROM Npaystocks WHERE 날짜 = '{last_date}'")
             rows = conn.execute(query_vol).fetchall()
-            
             prev_vol_map = {row[0]: row[1] for row in rows}
             print(f"🔍 전일거래량 데이터 {len(prev_vol_map)}건 확보.", flush=True)
         else:
@@ -62,37 +71,32 @@ try:
 except Exception as e:
     print(f"⚠️ 전일거래량 조회 실패 (0으로 진행): {e}", flush=True)
 
-# ------------------------------------------------------------------
-
 # 5. 최종 데이터프레임 조립 (전 종목 대상)
-# [수정] df_rise 대신 df_clean(전체)을 사용
 result_df = pd.DataFrame()
 result_df['날짜'] = [today] * len(df_clean)
 result_df['구분'] = df_clean['Market']
 result_df['종목명'] = df_clean['Name']
 result_df['현재가'] = df_clean['Close']
 result_df['전일비'] = df_clean['Changes']
-result_df['등락률'] = df_clean['ChagesRatio'] # 하락 종목은 마이너스로 들어감
+result_df['등락률'] = df_clean['ChagesRatio']
 result_df['거래량'] = df_clean['Volume']
-
-# 전일거래량 매핑 (없으면 0)
 result_df['전일거래량'] = result_df['종목명'].map(prev_vol_map).fillna(0).astype(int)
-
 result_df['시가총액'] = df_clean.get('Marcap', 0) // 100000000 
 result_df['상장주식수'] = df_clean['Stocks']
 
-print(f"총 {len(result_df)}개 종목 준비 완료. (전종목 저장)", flush=True)
+print(f"총 {len(result_df)}개 유효 종목 준비 완료.", flush=True)
 
 # 6. DB 저장 (트랜잭션)
 try:
     with engine.begin() as conn:
-        # 청소
+        # (A) 오늘 날짜 데이터 전체 삭제 (잘못 들어간 NULL 포함해서 싹 지움)
         conn.execute(text(f"DELETE FROM Npaystocks WHERE 날짜 = '{today}'"))
+        print(f"🧹 [입주 청소] {today}일자 기존 데이터 싹 비움.", flush=True)
         
-        # 저장
+        # (B) 깨끗한 데이터 저장
         result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
         
-    print(f"✅ DB 저장 성공! {len(result_df)}건 (전종목) 처리됨.", flush=True)
+    print(f"✅ DB 저장 성공! {len(result_df)}건 (깨끗한 데이터) 처리됨.", flush=True)
     engine.dispose()
     
 except Exception as e:
