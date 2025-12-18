@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v5.9 (상태컬럼 + 매도합산)</title>
+<title>마녀의 주식 대시보드 v5.9 (상태컬럼 + 매도합산 + 버그수정)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -611,7 +611,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
   const CLOUD_ID = "stock-dashboard-rows";
-  $('#cloudSaveBtn').addEventListener('click', async () => { if(!confirm('클라우드에 저장?')) return; try { const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { method: \"POST\", headers: { \"Content-Type\": \"text/plain;charset=UTF-8\" }, body: JSON.stringify({ rows, settings, ts: Date.now() }) }); if(res.ok) alert('저장 성공!'); else alert('실패: ' + res.status); } catch(e) { alert('에러: '+e.message); } });
+  $('#cloudSaveBtn').addEventListener('click', async () => { if(!confirm('클라우드에 저장?')) return; try { const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify({ rows, settings, ts: Date.now() }) }); if(res.ok) alert('저장 성공!'); else alert('실패: ' + res.status); } catch(e) { alert('에러: '+e.message); } });
   $('#cloudLoadBtn').addEventListener('click', async () => { if(!confirm('불러오면 덮어씌워집니다.')) return; try { const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID); const json = await res.json(); if(json.rows) { rows = json.rows.map(r => ({ ...r, group: r.group || 'short' })); saveRows(); } if(json.settings) { settings = Object.assign(settings, json.settings); saveSettings(); applySettingsToUI(); } render(); alert('불러오기 완료'); } catch(e) { alert('에러: '+e.message); } });
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
