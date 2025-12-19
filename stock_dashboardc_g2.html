@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.4 (단타 시세관측)</title>
+<title>마녀의 주식 대시보드 v6.5 (매도후 손익표시)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -487,19 +487,32 @@ function updateRowCalculation(tr, r){
   // [당일손익 계산]
   let dayProfit = 0;
   
-  // 오늘 날짜 구하기 (YYYY-MM-DD)
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
-  if (r.qty > 0 && (!r.fix || r.fix === 0)) {
+  // [수정됨] 매도된 상태(fix > 0)여도 당일손익 계산
+  if (r.qty > 0) {
+      // 1. 보유일이 오늘이면: 당일 손익 = 최종 누적 손익(실현 손익)
       if (r.date === todayStr) {
-          dayProfit = won;
+          dayProfit = won; // calcProfit에서 계산된 won 사용
       } else {
+          // 2. 보유일이 과거면: 전일 종가 대비 손익 계산
+          // 현재가(또는 매도가) - 전일종가
           const curPrice = r.cur || 0;
           const rate = r.dRate || 0;
-          if (curPrice > 0) {
-              const prevClose = curPrice / (1 + rate / 100);
-              dayProfit = (curPrice - prevClose) * r.qty;
+          
+          // 전일 종가 구하기 (현재가 기준 역산)
+          // 매도되었더라도 현재가(cur)는 계속 갱신되므로 cur 기반으로 전일종가를 구해야 정확함
+          let prevClose = 0;
+          if(curPrice > 0) {
+             prevClose = curPrice / (1 + rate / 100);
+          }
+          
+          // 평가 기준 가격: 매도되었으면 매도가(fix), 아니면 현재가(cur)
+          const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
+          
+          if (evalPrice > 0 && prevClose > 0) {
+              dayProfit = (evalPrice - prevClose) * r.qty;
           }
       }
   }
@@ -550,7 +563,6 @@ function updateTotalProfit(){
 
 async function fetchPrices(){
   if(!rows.length) return;
-  // [수정] 단타는 매도되었어도(fix>0) 시세 확인을 위해 fetch 대상에 포함
   const targetRows = rows.filter(r => (!r.fix || r.fix == 0) || (r.group === 'short' && r.fix > 0));
   const codes = targetRows.map(r => r.code).filter(c => c && c.length >= 6);
   if(!codes.length) { rows.forEach(r => { if(r.fix > 0 && r.group === 'long') { r.cur = 0; r.dRate = 0; } }); setStatus('활성 종목 없음', true); return; }
@@ -568,10 +580,8 @@ async function fetchPrices(){
     });
     let changed = false;
     rows.forEach(r => {
-      // 장투 매도종목은 0으로 초기화
       if(r.fix > 0 && r.group === 'long') { if(r.cur !== 0) { r.cur = 0; r.dRate = 0; changed = true; } return; }
       
-      // 그 외(활성 or 단타매도)는 업데이트
       if(!r.code) return;
       const key = r.code.replace('.KS','').replace('.KQ','');
       if(priceMap[key] !== undefined) {
@@ -655,14 +665,16 @@ document.addEventListener('DOMContentLoaded', () => {
       const drStr = (r.dRate || 0) + '%';
       
       let dayProfit = 0;
-      if (r.qty > 0 && (!r.fix || r.fix === 0)) {
+      if (r.qty > 0) {
           if (r.date === todayStr) {
                dayProfit = won;
           } else {
                const curPrice = r.cur || 0; const rate = r.dRate || 0;
-               if (curPrice > 0) {
-                   const prevClose = curPrice / (1 + rate / 100);
-                   dayProfit = (curPrice - prevClose) * r.qty;
+               let prevClose = 0;
+               if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
+               const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
+               if (evalPrice > 0 && prevClose > 0) {
+                   dayProfit = (evalPrice - prevClose) * r.qty;
                }
           }
       }
