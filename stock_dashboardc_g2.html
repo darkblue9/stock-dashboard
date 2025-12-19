@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.2 (당일손익 추가)</title>
+<title>마녀의 주식 대시보드 v6.3 (당일매수 로직개선)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -250,6 +250,7 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
+// [중요] 기존 데이터를 불러오기 위해 키 이름을 v5로 유지함
 const KEY_ROWS='rows_v5_final'; 
 const KEY_SET ='set_v5_final';
 let rows=[], settings={};
@@ -484,15 +485,24 @@ function updateRowCalculation(tr, r){
   const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
   
   // [당일손익 계산]
-  // 공식: (현재가 - 전일종가) * 수량
-  // 전일종가 = 현재가 / (1 + 등락률/100)
   let dayProfit = 0;
+  
+  // 오늘 날짜 구하기 (YYYY-MM-DD)
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
   if (r.qty > 0 && (!r.fix || r.fix === 0)) {
-      const curPrice = r.cur || 0;
-      const rate = r.dRate || 0;
-      if (curPrice > 0) {
-          const prevClose = curPrice / (1 + rate / 100);
-          dayProfit = (curPrice - prevClose) * r.qty;
+      // 보유일이 오늘이면 누적손익(won)을 그대로 당일손익으로 사용
+      if (r.date === todayStr) {
+          dayProfit = won;
+      } else {
+          // 과거 보유분은 등락률 기준 계산
+          const curPrice = r.cur || 0;
+          const rate = r.dRate || 0;
+          if (curPrice > 0) {
+              const prevClose = curPrice / (1 + rate / 100);
+              dayProfit = (curPrice - prevClose) * r.qty;
+          }
       }
   }
 
@@ -632,16 +642,25 @@ document.addEventListener('DOMContentLoaded', () => {
         if(currentFilter === 'long' && r.group === 'short') return false;
         if(hideSold && r.fix > 0) return false; return true;
     });
+    
+    // 오늘 날짜 구하기 (YYYY-MM-DD)
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
       
       let dayProfit = 0;
       if (r.qty > 0 && (!r.fix || r.fix === 0)) {
-          const curPrice = r.cur || 0; const rate = r.dRate || 0;
-          if (curPrice > 0) {
-              const prevClose = curPrice / (1 + rate / 100);
-              dayProfit = (curPrice - prevClose) * r.qty;
+          if (r.date === todayStr) {
+               dayProfit = won;
+          } else {
+               const curPrice = r.cur || 0; const rate = r.dRate || 0;
+               if (curPrice > 0) {
+                   const prevClose = curPrice / (1 + rate / 100);
+                   dayProfit = (curPrice - prevClose) * r.qty;
+               }
           }
       }
 
