@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.3 (당일매수 로직개선)</title>
+<title>마녀의 주식 대시보드 v6.7 (합산손익 정밀수정)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -108,8 +108,8 @@ col.col-target { width: 90px; }
 col.col-cur { width: 80px; }
 col.col-rate { width: 55px; }
 col.col-fix { width: 75px; }
-col.col-day-profit { width: 70px; } /* 당일손익 */
-col.col-profit { width: 75px; }     /* 누적손익 */
+col.col-day-profit { width: 70px; }
+col.col-profit { width: 75px; }
 col.col-percent { width: 60px; }
 col.col-act { width: 165px; }
 
@@ -156,7 +156,9 @@ col.col-act { width: 165px; }
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
         <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
     </label>
-    <span style="font-size:11px; color:#666; margin-left:4px;">*숨겨도 총손익엔 포함됨</span>
+    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
+        <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
+    </label>
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
     <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
     </label>
@@ -250,7 +252,6 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-// [중요] 기존 데이터를 불러오기 위해 키 이름을 v5로 유지함
 const KEY_ROWS='rows_v5_final'; 
 const KEY_SET ='set_v5_final';
 let rows=[], settings={};
@@ -293,19 +294,56 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 // ==========================================
 // 3. 렌더링
 // ==========================================
+// [신규] 개별 행의 당일 손익 계산 함수 (합산 시 사용)
+function calculateDayProfitForRow(r) {
+  if (!r.qty || Number(r.qty) <= 0) return 0;
+
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  
+  // 전체 누적 손익 계산 (당일 매수 시 필요)
+  const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+
+  if (r.date === todayStr) {
+      // 1. 당일 매수: 누적 손익이 곧 당일 손익
+      return won;
+  } else {
+      // 2. 과거 매수: (평가액 - 전일종가) * 수량
+      const curPrice = r.cur || 0;
+      const rate = r.dRate || 0;
+      let prevClose = 0;
+      if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
+      
+      const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
+      if (evalPrice > 0 && prevClose > 0) {
+          return (evalPrice - prevClose) * r.qty;
+      }
+  }
+  return 0;
+}
+
 function aggregateRows(originalRows) {
     const map = new Map();
     const result = [];
+    const hideSold = $('#hideSoldToggle').checked;
+    const hideWatch = $('#hideWatchToggle').checked; 
+
     originalRows.forEach((r, originalIndex) => {
         if(currentFilter === 'short' && r.group === 'long') return;
         if(currentFilter === 'long' && r.group === 'short') return;
-        const hideSold = $('#hideSoldToggle').checked;
+        
         const isSold = (r.fix > 0);
         if(hideSold && isSold) return;
+
+        const isWatch = (!r.qty || Number(r.qty) <= 0);
+        if(hideWatch && isWatch) return;
 
         const statusKey = isSold ? 'SOLD' : 'ACTIVE';
         const key = r.code + '_' + r.group + '_' + statusKey; 
         
+        // 당일 손익 미리 계산
+        const rowDayProfit = calculateDayProfitForRow(r);
+
         if (!map.has(key)) {
             map.set(key, { 
                 ...r, 
@@ -314,7 +352,8 @@ function aggregateRows(originalRows) {
                 _count: 1, 
                 _totalQty: Number(r.qty) || 0, 
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
-                _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0) 
+                _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0),
+                _totalDayProfit: rowDayProfit // 당일손익 합계 초기화
             });
         } else {
             const entry = map.get(key);
@@ -326,6 +365,7 @@ function aggregateRows(originalRows) {
             entry._totalQty += curQty; 
             entry._totalInvest += curInvest;
             entry._totalSellAmt += curSellAmt;
+            entry._totalDayProfit += rowDayProfit; // 당일손익 누적
             if (r.date < entry.date) entry.date = r.date;
         }
     });
@@ -337,6 +377,9 @@ function aggregateRows(originalRows) {
             if(val._totalSellAmt > 0 && val._totalQty > 0) {
                 val.fix = Math.round(val._totalSellAmt / val._totalQty);
             }
+            // 당일손익은 누적된 값을 그대로 사용
+            val.dayProfit = val._totalDayProfit;
+
             val.name = val.name + ` (합:${val._count})`; 
         }
         result.push(val);
@@ -353,10 +396,17 @@ function render(){
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
+      const hideWatch = $('#hideWatchToggle').checked; 
+
       rows.forEach((r, i) => {
           if(currentFilter === 'short' && r.group === 'long') return;
           if(currentFilter === 'long' && r.group === 'short') return;
+          
           if(hideSold && r.fix > 0) return;
+
+          const isWatch = (!r.qty || Number(r.qty) <= 0);
+          if(hideWatch && isWatch) return;
+
           displayRows.push({ ...r, _idx: i, _isAgg: false });
       });
   }
@@ -478,6 +528,7 @@ function moveSoldRowToBottom(index) {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mergeToggle = $('#mergeToggle'); if(mergeToggle) mergeToggle.addEventListener('change', render);
+    const hideWatchToggle = $('#hideWatchToggle'); if(hideWatchToggle) hideWatchToggle.addEventListener('change', render);
 });
 
 function updateRowCalculation(tr, r){
@@ -487,23 +538,12 @@ function updateRowCalculation(tr, r){
   // [당일손익 계산]
   let dayProfit = 0;
   
-  // 오늘 날짜 구하기 (YYYY-MM-DD)
-  const today = new Date();
-  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-
-  if (r.qty > 0 && (!r.fix || r.fix === 0)) {
-      // 보유일이 오늘이면 누적손익(won)을 그대로 당일손익으로 사용
-      if (r.date === todayStr) {
-          dayProfit = won;
-      } else {
-          // 과거 보유분은 등락률 기준 계산
-          const curPrice = r.cur || 0;
-          const rate = r.dRate || 0;
-          if (curPrice > 0) {
-              const prevClose = curPrice / (1 + rate / 100);
-              dayProfit = (curPrice - prevClose) * r.qty;
-          }
-      }
+  // 합산 행인 경우, 미리 계산된 값을 사용
+  if (r._isAgg && r.dayProfit !== undefined) {
+      dayProfit = r.dayProfit;
+  } else {
+      // 일반 행인 경우 직접 계산 (calculateDayProfitForRow 함수와 동일 로직)
+      dayProfit = calculateDayProfitForRow(r);
   }
 
   const dp = tr.querySelector('.dp');
@@ -552,9 +592,10 @@ function updateTotalProfit(){
 
 async function fetchPrices(){
   if(!rows.length) return;
-  const activeRows = rows.filter(r => !r.fix || r.fix == 0);
-  const codes = activeRows.map(r => r.code).filter(c => c && c.length >= 6);
-  if(!codes.length) { rows.forEach(r => { if(r.fix > 0 && r.cur !== 0) { r.cur = 0; r.dRate = 0; } }); setStatus('활성 종목 없음', true); return; }
+  const targetRows = rows.filter(r => (!r.fix || r.fix == 0) || (r.group === 'short' && r.fix > 0));
+  const codes = targetRows.map(r => r.code).filter(c => c && c.length >= 6);
+  if(!codes.length) { rows.forEach(r => { if(r.fix > 0 && r.group === 'long') { r.cur = 0; r.dRate = 0; } }); setStatus('활성 종목 없음', true); return; }
+  
   const uniqueCodes = [...new Set(codes)].map(c => { let code = c.trim().toUpperCase(); if(/^\d{6}$/.test(code)) return code; return code.replace('.KS','').replace('.KQ',''); });
   const url = `${settings.apiBase}/api/prices?codes=${uniqueCodes.join(',')}&t=${Date.now()}`;
   setStatus('갱신중...', true);
@@ -568,7 +609,8 @@ async function fetchPrices(){
     });
     let changed = false;
     rows.forEach(r => {
-      if(r.fix > 0) { if(r.cur !== 0) { r.cur = 0; r.dRate = 0; changed = true; } return; }
+      if(r.fix > 0 && r.group === 'long') { if(r.cur !== 0) { r.cur = 0; r.dRate = 0; changed = true; } return; }
+      
       if(!r.code) return;
       const key = r.code.replace('.KS','').replace('.KQ','');
       if(priceMap[key] !== undefined) {
@@ -637,31 +679,25 @@ document.addEventListener('DOMContentLoaded', () => {
     // 복사 기능에도 당일손익 추가
     const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
+    const hideWatch = $('#hideWatchToggle').checked; 
+
     const visibleRows = rows.filter(r => {
         if(currentFilter === 'short' && r.group === 'long') return false;
         if(currentFilter === 'long' && r.group === 'short') return false;
-        if(hideSold && r.fix > 0) return false; return true;
+        if(hideSold && r.fix > 0) return false;
+        if(hideWatch && (!r.qty || Number(r.qty) <= 0)) return false; 
+        return true;
     });
     
-    // 오늘 날짜 구하기 (YYYY-MM-DD)
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
       
       let dayProfit = 0;
-      if (r.qty > 0 && (!r.fix || r.fix === 0)) {
-          if (r.date === todayStr) {
-               dayProfit = won;
-          } else {
-               const curPrice = r.cur || 0; const rate = r.dRate || 0;
-               if (curPrice > 0) {
-                   const prevClose = curPrice / (1 + rate / 100);
-                   dayProfit = (curPrice - prevClose) * r.qty;
-               }
-          }
+      if (r._isAgg && r.dayProfit !== undefined) {
+          dayProfit = r.dayProfit;
+      } else {
+          dayProfit = calculateDayProfitForRow(r);
       }
 
       let statusStr = '관망';
