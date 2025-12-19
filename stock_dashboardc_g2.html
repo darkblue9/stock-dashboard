@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.5 (매도후 손익표시)</title>
+<title>마녀의 주식 대시보드 v6.6 (관망숨김 추가)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -108,8 +108,8 @@ col.col-target { width: 90px; }
 col.col-cur { width: 80px; }
 col.col-rate { width: 55px; }
 col.col-fix { width: 75px; }
-col.col-day-profit { width: 70px; } /* 당일손익 */
-col.col-profit { width: 75px; }     /* 누적손익 */
+col.col-day-profit { width: 70px; }
+col.col-profit { width: 75px; }
 col.col-percent { width: 60px; }
 col.col-act { width: 165px; }
 
@@ -156,7 +156,9 @@ col.col-act { width: 165px; }
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
         <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
     </label>
-    <span style="font-size:11px; color:#666; margin-left:4px;">*숨겨도 총손익엔 포함됨</span>
+    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
+        <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
+    </label>
     <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
     <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
     </label>
@@ -296,12 +298,19 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 function aggregateRows(originalRows) {
     const map = new Map();
     const result = [];
+    const hideSold = $('#hideSoldToggle').checked;
+    const hideWatch = $('#hideWatchToggle').checked; // 관망숨김 상태
+
     originalRows.forEach((r, originalIndex) => {
         if(currentFilter === 'short' && r.group === 'long') return;
         if(currentFilter === 'long' && r.group === 'short') return;
-        const hideSold = $('#hideSoldToggle').checked;
+        
         const isSold = (r.fix > 0);
         if(hideSold && isSold) return;
+
+        // [신규] 관망숨김 체크 시, 수량 없는 종목 건너뜀
+        const isWatch = (!r.qty || Number(r.qty) <= 0);
+        if(hideWatch && isWatch) return;
 
         const statusKey = isSold ? 'SOLD' : 'ACTIVE';
         const key = r.code + '_' + r.group + '_' + statusKey; 
@@ -353,10 +362,18 @@ function render(){
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
+      const hideWatch = $('#hideWatchToggle').checked; // 관망숨김 상태
+
       rows.forEach((r, i) => {
           if(currentFilter === 'short' && r.group === 'long') return;
           if(currentFilter === 'long' && r.group === 'short') return;
+          
           if(hideSold && r.fix > 0) return;
+
+          // [신규] 관망숨김 로직
+          const isWatch = (!r.qty || Number(r.qty) <= 0);
+          if(hideWatch && isWatch) return;
+
           displayRows.push({ ...r, _idx: i, _isAgg: false });
       });
   }
@@ -478,6 +495,8 @@ function moveSoldRowToBottom(index) {
 
 document.addEventListener('DOMContentLoaded', () => {
     const mergeToggle = $('#mergeToggle'); if(mergeToggle) mergeToggle.addEventListener('change', render);
+    // [신규] 관망숨김 토글 이벤트
+    const hideWatchToggle = $('#hideWatchToggle'); if(hideWatchToggle) hideWatchToggle.addEventListener('change', render);
 });
 
 function updateRowCalculation(tr, r){
@@ -490,30 +509,17 @@ function updateRowCalculation(tr, r){
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
-  // [수정됨] 매도된 상태(fix > 0)여도 당일손익 계산
   if (r.qty > 0) {
-      // 1. 보유일이 오늘이면: 당일 손익 = 최종 누적 손익(실현 손익)
       if (r.date === todayStr) {
-          dayProfit = won; // calcProfit에서 계산된 won 사용
+          dayProfit = won;
       } else {
-          // 2. 보유일이 과거면: 전일 종가 대비 손익 계산
-          // 현재가(또는 매도가) - 전일종가
-          const curPrice = r.cur || 0;
-          const rate = r.dRate || 0;
-          
-          // 전일 종가 구하기 (현재가 기준 역산)
-          // 매도되었더라도 현재가(cur)는 계속 갱신되므로 cur 기반으로 전일종가를 구해야 정확함
-          let prevClose = 0;
-          if(curPrice > 0) {
-             prevClose = curPrice / (1 + rate / 100);
-          }
-          
-          // 평가 기준 가격: 매도되었으면 매도가(fix), 아니면 현재가(cur)
-          const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
-          
-          if (evalPrice > 0 && prevClose > 0) {
-              dayProfit = (evalPrice - prevClose) * r.qty;
-          }
+           const curPrice = r.cur || 0; const rate = r.dRate || 0;
+           let prevClose = 0;
+           if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
+           const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
+           if (evalPrice > 0 && prevClose > 0) {
+               dayProfit = (evalPrice - prevClose) * r.qty;
+           }
       }
   }
 
@@ -647,16 +653,18 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    // 복사 기능에도 당일손익 추가
     const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
+    const hideWatch = $('#hideWatchToggle').checked; // 복사 시에도 필터 반영
+
     const visibleRows = rows.filter(r => {
         if(currentFilter === 'short' && r.group === 'long') return false;
         if(currentFilter === 'long' && r.group === 'short') return false;
-        if(hideSold && r.fix > 0) return false; return true;
+        if(hideSold && r.fix > 0) return false;
+        if(hideWatch && (!r.qty || Number(r.qty) <= 0)) return false; // 관망숨김 반영
+        return true;
     });
     
-    // 오늘 날짜 구하기 (YYYY-MM-DD)
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
 
