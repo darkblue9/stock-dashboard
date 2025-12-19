@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.0 (매도 자동정렬)</title>
+<title>마녀의 주식 대시보드 v6.1 (데이터복구 + 매도자동정렬)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -249,8 +249,9 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-const KEY_ROWS='rows_v6_final'; // 키 변경하여 버전 구분
-const KEY_SET ='set_v6_final';
+// [중요] 기존 데이터를 불러오기 위해 키 이름을 v5로 유지함
+const KEY_ROWS='rows_v5_final'; 
+const KEY_SET ='set_v5_final';
 let rows=[], settings={};
 let currentFilter = 'short'; 
 
