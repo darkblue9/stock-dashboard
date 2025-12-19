@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.1 (단타 매도후 추적)</title>
+<title>마녀의 주식 대시보드 v6.1 (정렬개편 + 당일손익 + 단타추적).</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -106,8 +106,8 @@ col.col-inv { width: 80px; }
 col.col-target { width: 90px; }
 col.col-cur { width: 80px; }
 col.col-rate { width: 55px; } /* 일일% */
+col.col-dprofit { width: 75px; } /* 당일손익 */
 col.col-fix { width: 75px; }
-col.col-dprofit { width: 70px; } /* 당일손익 */
 col.col-profit { width: 75px; } /* 누적손익 */
 col.col-percent { width: 60px; }
 col.col-act { width: 165px; }
@@ -187,15 +187,15 @@ col.col-act { width: 165px; }
     <col class="col-target">
     <col class="col-cur">
 	<col class="col-rate">
-    <col class="col-fix">
-    <col class="col-dprofit"> <col class="col-profit">  <col class="col-percent">
+    <col class="col-dprofit"> <col class="col-fix">
+    <col class="col-profit">  <col class="col-percent">
     <col class="col-act">
   </colgroup>
   <thead><tr>
     <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th><th>보유일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
-    <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th>
-    <th>당일손익</th><th>누적손익</th><th>%</th><th>동작</th>
+    <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th>
+    <th>당일손익</th><th>매도가</th><th>누적손익</th><th>%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
@@ -242,6 +242,8 @@ function calcProfit(avg,cur,fix,qty){
 // 당일 손익 계산 함수
 function calcDailyProfit(cur, dRate, qty) {
     if (!cur || !qty || dRate === undefined) return 0;
+    // 당일손익 = 평가액 - (평가액 / (1 + 등락률/100))
+    // 즉, 오늘 변동된 금액만큼의 가치
     const val = cur * qty;
     const prevVal = val / (1 + (dRate / 100));
     return val - prevVal;
@@ -410,10 +412,9 @@ function render(){
         <div class="trend-dots"></div> 
       </td>
       <td><span style="font-size:11px;" class="${drClass}">${drStr}</span></td>
-
-      <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
       
-      <td><span class="d-profit">0</span></td> <td><span class="pw">0</span></td> <td><span class="pp">0%</span></td>
+      <td><span class="d-profit">0</span></td> <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
+      <td><span class="pw">0</span></td> <td><span class="pp">0%</span></td>
       <td>
         <span class="actions">
           <button class="chart-btn">차트</button>
@@ -631,7 +632,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
+    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '당일손익', '매도가', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
     const visibleRows = rows.filter(r => {
         if(currentFilter === 'short' && r.group === 'long') return false;
@@ -647,7 +648,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(r.qty>0 && r.fix>0) statusStr='매도됨';
       else if(r.qty>0 && !r.fix) statusStr='운영중';
       
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, dProfit, Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, dProfit, r.fix||0, Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
     });
     navigator.clipboard.writeText(headers.join('\t') + '\n' + lines.join('\n')).then(()=>alert(`복사 완료 (${visibleRows.length}건)`));
   });
