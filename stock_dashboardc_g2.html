@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.0 (Step1: 정렬개편)</title>
+<title>마녀의 주식 대시보드 v6.0 (매도 자동정렬)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -249,8 +249,8 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-const KEY_ROWS='rows_v5_final'; // 키값 유지 (데이터 날아가지 않게)
-const KEY_SET ='set_v5_final';
+const KEY_ROWS='rows_v6_final'; // 키 변경하여 버전 구분
+const KEY_SET ='set_v6_final';
 let rows=[], settings={};
 let currentFilter = 'short'; 
 
@@ -289,7 +289,7 @@ function saveSettings(){
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
 // ==========================================
-// 3. 렌더링
+// 3. 렌더링 (종목 합산 로직)
 // ==========================================
 function aggregateRows(originalRows) {
     const map = new Map();
@@ -312,7 +312,7 @@ function aggregateRows(originalRows) {
                 _count: 1, 
                 _totalQty: Number(r.qty) || 0, 
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
-                _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0)
+                _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0) 
             });
         } else {
             const entry = map.get(key);
@@ -373,6 +373,7 @@ function render(){
     const readOnlyAttr = r._isAgg ? 'readonly style="color:#aaa"' : '';
     const dr = r.dRate || 0; const drClass = dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : ''); const drStr = (dr > 0 ? '+' : '') + dr + '%';
 
+    // [상태 배지 결정]
     let statusHtml = '';
     const rQty = Number(r.qty) || 0;
     const rFix = Number(r.fix) || 0;
@@ -424,8 +425,18 @@ function render(){
         const bindInput = (sel, key, isNum) => {
             const el = tr.querySelector(sel); if(!el) return;
             el.addEventListener('change', ()=>{
-                let val = el.value; if(isNum) val = toNum(val); rows[realIndex][key] = val; saveRows();
-                if(key === 'date') render(); else updateRowCalculation(tr, rows[realIndex]);
+                let val = el.value; if(isNum) val = toNum(val); 
+                rows[realIndex][key] = val; 
+                saveRows();
+                
+                // [신규] 매도가(fix) 입력 시 자동 정렬 로직 실행
+                if (key === 'fix') {
+                   moveSoldRowToBottom(realIndex);
+                } else if (key === 'date') {
+                   render();
+                } else {
+                   updateRowCalculation(tr, rows[realIndex]);
+                }
             });
             if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
         };
@@ -455,6 +466,34 @@ function render(){
   updateTotalProfit();
 }
 
+// [신규] 매도된 행을 매도 그룹의 가장 아래(관망 위)로 이동시키는 함수
+function moveSoldRowToBottom(index) {
+    const target = rows[index];
+    // 매도 조건: 수량이 있고 매도가가 0보다 커야 함
+    if (target.qty > 0 && target.fix > 0) {
+        // 일단 현재 위치에서 제거
+        rows.splice(index, 1);
+        
+        // 관망(주수 없음 or 0)인 첫 번째 녀석을 찾는다
+        let insertAt = rows.length; // 못 찾으면 맨 뒤
+        for(let i=0; i < rows.length; i++){
+            // 주수가 없거나 0이면 관망 종목임
+            if(!rows[i].qty || Number(rows[i].qty) <= 0) {
+                insertAt = i;
+                break;
+            }
+        }
+        // 그 위치(관망 바로 앞)에 삽입
+        rows.splice(insertAt, 0, target);
+        
+        saveRows();
+        render(); // 전체 다시 그리기
+    } else {
+        // 매도가 취소했거나 하면 그냥 값만 바뀐거니 계산 갱신
+        render();
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     const mergeToggle = $('#mergeToggle'); if(mergeToggle) mergeToggle.addEventListener('change', render);
 });
@@ -466,6 +505,7 @@ function updateRowCalculation(tr, r){
   if(pw) { pw.textContent = fmt(Math.round(won)); pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg'); }
   if(pp) { pp.textContent = pct.toFixed(2) + '%'; pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg'); }
   
+  // 목표가 점멸 (매도된 상태가 아닐 때만)
   if (!r.fix || r.fix == 0) {
       const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
       if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
@@ -569,15 +609,9 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btnSortEmptyQty').addEventListener('click', () => {
     const active = [], sold = [], watch = [];
     rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
-    
-    // [1번 요청 적용] 정렬 순서: 운영중(Active) -> 관망(Watch) -> 매도(Sold)
-    // 매도된 것은 맨 마지막에 배치됨
     active.sort((a,b) => calcProfit(b.avg, b.cur, b.fix, b.qty).won - calcProfit(a.avg, a.cur, a.fix, a.qty).won);
     watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
-    // sold는 별도 정렬 없이 기존 순서대로 맨 아래에 붙임 (자연스럽게 쌓임)
-    
-    rows = [...active, ...watch, ...sold]; 
-    saveRows(); render();
+    rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
   $('#btnSetTargets').addEventListener('click', () => {
     let changed = 0;
