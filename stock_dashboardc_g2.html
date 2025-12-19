@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.1 (데이터복구 + 매도자동정렬)</title>
+<title>마녀의 주식 대시보드 v6.2 (당일손익 추가)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -108,7 +108,8 @@ col.col-target { width: 90px; }
 col.col-cur { width: 80px; }
 col.col-rate { width: 55px; }
 col.col-fix { width: 75px; }
-col.col-profit { width: 75px; }
+col.col-day-profit { width: 70px; } /* 당일손익 */
+col.col-profit { width: 75px; }     /* 누적손익 */
 col.col-percent { width: 60px; }
 col.col-act { width: 165px; }
 
@@ -187,14 +188,14 @@ col.col-act { width: 165px; }
     <col class="col-cur">
 	<col class="col-rate">
     <col class="col-fix">
-    <col class="col-profit">
-    <col class="col-percent">
+    <col class="col-day-profit"> <col class="col-profit">     <col class="col-percent">
     <col class="col-act">
   </colgroup>
   <thead><tr>
     <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th><th>보유일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
-    <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th><th>손익</th><th>%</th><th>동작</th>
+    <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th>
+    <th>당일손익</th><th>누적손익</th><th>%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
 </table>
@@ -249,7 +250,6 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-// [중요] 기존 데이터를 불러오기 위해 키 이름을 v5로 유지함
 const KEY_ROWS='rows_v5_final'; 
 const KEY_SET ='set_v5_final';
 let rows=[], settings={};
@@ -290,7 +290,7 @@ function saveSettings(){
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
 // ==========================================
-// 3. 렌더링 (종목 합산 로직)
+// 3. 렌더링
 // ==========================================
 function aggregateRows(originalRows) {
     const map = new Map();
@@ -374,18 +374,13 @@ function render(){
     const readOnlyAttr = r._isAgg ? 'readonly style="color:#aaa"' : '';
     const dr = r.dRate || 0; const drClass = dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : ''); const drStr = (dr > 0 ? '+' : '') + dr + '%';
 
-    // [상태 배지 결정]
+    // [상태 배지]
     let statusHtml = '';
     const rQty = Number(r.qty) || 0;
     const rFix = Number(r.fix) || 0;
-    
-    if (rQty > 0 && rFix > 0) {
-        statusHtml = '<span class="status-badge st-sold">매도됨</span>';
-    } else if (rQty > 0 && !rFix) {
-        statusHtml = '<span class="status-badge st-active">운영중</span>';
-    } else {
-        statusHtml = '<span class="status-badge st-watch">관망</span>';
-    }
+    if (rQty > 0 && rFix > 0) statusHtml = '<span class="status-badge st-sold">매도됨</span>';
+    else if (rQty > 0 && !rFix) statusHtml = '<span class="status-badge st-active">운영중</span>';
+    else statusHtml = '<span class="status-badge st-watch">관망</span>';
 
     tr.innerHTML=`
       <td class="row-no ${memoClass}" title="No">
@@ -409,7 +404,10 @@ function render(){
       <td><span style="font-size:11px;" class="${drClass}">${drStr}</span></td>
 
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
+      
+      <td><span class="dp">0</span></td>
       <td><span class="pw">0</span></td>
+      
       <td><span class="pp">0%</span></td>
       <td>
         <span class="actions">
@@ -429,15 +427,9 @@ function render(){
                 let val = el.value; if(isNum) val = toNum(val); 
                 rows[realIndex][key] = val; 
                 saveRows();
-                
-                // [신규] 매도가(fix) 입력 시 자동 정렬 로직 실행
-                if (key === 'fix') {
-                   moveSoldRowToBottom(realIndex);
-                } else if (key === 'date') {
-                   render();
-                } else {
-                   updateRowCalculation(tr, rows[realIndex]);
-                }
+                if (key === 'fix') moveSoldRowToBottom(realIndex);
+                else if (key === 'date') render();
+                else updateRowCalculation(tr, rows[realIndex]);
             });
             if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
         };
@@ -467,32 +459,20 @@ function render(){
   updateTotalProfit();
 }
 
-// [신규] 매도된 행을 매도 그룹의 가장 아래(관망 위)로 이동시키는 함수
 function moveSoldRowToBottom(index) {
     const target = rows[index];
-    // 매도 조건: 수량이 있고 매도가가 0보다 커야 함
     if (target.qty > 0 && target.fix > 0) {
-        // 일단 현재 위치에서 제거
         rows.splice(index, 1);
-        
-        // 관망(주수 없음 or 0)인 첫 번째 녀석을 찾는다
-        let insertAt = rows.length; // 못 찾으면 맨 뒤
+        let insertAt = rows.length; 
         for(let i=0; i < rows.length; i++){
-            // 주수가 없거나 0이면 관망 종목임
             if(!rows[i].qty || Number(rows[i].qty) <= 0) {
                 insertAt = i;
                 break;
             }
         }
-        // 그 위치(관망 바로 앞)에 삽입
         rows.splice(insertAt, 0, target);
-        
-        saveRows();
-        render(); // 전체 다시 그리기
-    } else {
-        // 매도가 취소했거나 하면 그냥 값만 바뀐거니 계산 갱신
-        render();
-    }
+        saveRows(); render(); 
+    } else { render(); }
 }
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -502,11 +482,30 @@ document.addEventListener('DOMContentLoaded', () => {
 function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0); tr.querySelector('.inv').value = fmt(r.inv);
   const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+  
+  // [당일손익 계산]
+  // 공식: (현재가 - 전일종가) * 수량
+  // 전일종가 = 현재가 / (1 + 등락률/100)
+  let dayProfit = 0;
+  if (r.qty > 0 && (!r.fix || r.fix === 0)) {
+      const curPrice = r.cur || 0;
+      const rate = r.dRate || 0;
+      if (curPrice > 0) {
+          const prevClose = curPrice / (1 + rate / 100);
+          dayProfit = (curPrice - prevClose) * r.qty;
+      }
+  }
+
+  const dp = tr.querySelector('.dp');
+  if(dp) {
+      dp.textContent = fmt(Math.round(dayProfit));
+      dp.className = 'dp ' + (dayProfit >= 0 ? 'profit-pos' : 'profit-neg');
+  }
+
   const pw = tr.querySelector('.pw'); const pp = tr.querySelector('.pp');
   if(pw) { pw.textContent = fmt(Math.round(won)); pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg'); }
   if(pp) { pp.textContent = pct.toFixed(2) + '%'; pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg'); }
   
-  // 목표가 점멸 (매도된 상태가 아닐 때만)
   if (!r.fix || r.fix == 0) {
       const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
       if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
@@ -625,7 +624,8 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '손익', '수익률', '메모'];
+    // 복사 기능에도 당일손익 추가
+    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
     const visibleRows = rows.filter(r => {
         if(currentFilter === 'short' && r.group === 'long') return false;
@@ -635,11 +635,21 @@ document.addEventListener('DOMContentLoaded', () => {
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
+      
+      let dayProfit = 0;
+      if (r.qty > 0 && (!r.fix || r.fix === 0)) {
+          const curPrice = r.cur || 0; const rate = r.dRate || 0;
+          if (curPrice > 0) {
+              const prevClose = curPrice / (1 + rate / 100);
+              dayProfit = (curPrice - prevClose) * r.qty;
+          }
+      }
+
       let statusStr = '관망';
       if(r.qty>0 && r.fix>0) statusStr='매도됨';
       else if(r.qty>0 && !r.fix) statusStr='운영중';
       
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
     });
     navigator.clipboard.writeText(headers.join('\t') + '\n' + lines.join('\n')).then(()=>alert(`복사 완료 (${visibleRows.length}건)`));
   });
