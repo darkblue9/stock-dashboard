@@ -3,23 +3,24 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.7 (합산손익 정밀수정)</title>
+<title>마녀의 주식 대시보드 v7.0 (컬럼폭 최적화)</title>
 <style>
-/* === 기본 스타일 (13px 적용) === */
+/* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
 table{width:100%; border-collapse:collapse; table-layout:fixed; margin-top:5px;}
-th,td{border:1px solid #ccc; padding:3px 3px; text-align:center; vertical-align:middle; height: 34px;}
+/* 셀 좌우 여백을 줄여서 공간 확보 (padding: 3px 1px) */
+th,td{border:1px solid #ccc; padding:3px 1px; text-align:center; vertical-align:middle; height: 34px;}
 input,select,button{font:inherit; font-size:13px;}
 
 /* === 입력창 스타일 === */
-#grid td > input { width: 100%; padding: 2px 4px; box-sizing: border-box; text-align: right; border:none; background: transparent; height: 26px; line-height: 22px;}
+#grid td > input { width: 100%; padding: 2px 2px; box-sizing: border-box; text-align: right; border:none; background: transparent; height: 26px; line-height: 22px;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; font-weight: bold; }
 #grid td input.code { text-align: center; color: #666; font-size: 12px; }
 
-/* 날짜 셀 스타일 */
+/* 날짜 셀 스타일 (폰트 11px로 유지하되 폭 맞춤) */
 #grid td input[type="date"] { 
-    font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -0.5px; 
+    font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -1px; width: 100%;
 }
 
 td input[readonly]{background:#f9f9f9; color:#555}
@@ -42,7 +43,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .dot{width:6px; height:6px; border-radius:50%; background:#ccc; display:inline-block; flex-shrink:0;}
 .dot.red{background:#ff1744}
 .dot.blue{background:#2979ff}
-.target-cell{display:flex; align-items:center; gap:4px; justify-content:center; width:100%;}
+.target-cell{display:flex; align-items:center; gap:2px; justify-content:center; width:100%;}
 .target-cell input { flex: 1; min-width: 0; font-size: 12px; }
 
 /* === 상단 필터 바 === */
@@ -57,9 +58,9 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .grp-long  { background: #e3f2fd; color: #1565c0; }
 
 /* === 상태 배지 === */
-.status-badge { display:inline-block; padding:2px 5px; border-radius:4px; color:#fff; font-size:11px; line-height:1.2; font-weight:normal; min-width: 34px;}
-.st-active { background:#00897b; } /* 운영중 (청록) */
-.st-sold { background:#757575; }   /* 매도됨 (회색) */
+.status-badge { display:inline-block; padding:2px 4px; border-radius:4px; color:#fff; font-size:11px; line-height:1.2; font-weight:normal; min-width: 32px;}
+.st-active { background:#00897b; } /* 운영중 */
+.st-sold { background:#757575; }   /* 매도됨 */
 .st-watch { background:#fff; color:#999; border:1px solid #ddd; } /* 관망 */
 
 /* === 토스트, 상단 배지 === */
@@ -69,14 +70,14 @@ td input[readonly]{background:#f9f9f9; color:#555}
 
 /* === 트렌드 점 === */
 td.cur-cell { position: relative; }
-td.cur-cell .trend-dots { position: absolute; right: 3px; bottom: 3px; display:flex; gap:2px; pointer-events:none;} 
-.trend-dot { width:6px; height:6px; border-radius:50%; background:#ddd; opacity:.5 } 
+td.cur-cell .trend-dots { position: absolute; right: 2px; bottom: 2px; display:flex; gap:1px; pointer-events:none;} 
+.trend-dot { width:5px; height:5px; border-radius:50%; background:#ddd; opacity:.5 } 
 .trend-dot.up   { background:#d32f2f; opacity:1; }
 .trend-dot.down { background:#1976d2; opacity:1; }
 
 /* === D-Day 배지 === */
-.date-cell { display:flex; flex-direction:column; align-items:center; gap:1px; }
-.d-day-badge { font-size:10px; font-weight:bold; color:#fff; background:#90a4ae; padding:1px 4px; border-radius:3px; display:inline-block; min-width:28px; line-height: 1.2;}
+.date-cell { display:flex; flex-direction:column; align-items:center; gap:0px; }
+.d-day-badge { font-size:9px; font-weight:bold; color:#fff; background:#90a4ae; padding:1px 3px; border-radius:3px; display:inline-block; min-width:24px; line-height: 1.1; margin-bottom: 1px;}
 .d-day-badge.new { background: #ff9800; } 
 .d-day-badge.old { background: #607d8b; } 
 
@@ -93,25 +94,26 @@ td.cur-cell .trend-dots { position: absolute; right: 3px; bottom: 3px; display:f
 }
 .row-no:hover .memo-tooltip { display: block; }
 
-/* === 컬럼 폭 설정 === */
-col.col-no { width: 32px; }
-col.col-group { width: 40px; }
-col.col-status { width: 50px; } 
-col.col-code { width: 60px; }
-col.col-name { width: 100px; } 
-col.col-date { width: 90px; }
-col.col-avg { width: 70px; }
-col.col-qty { width: 40px; }
-col.col-inv { width: 80px; }
-col.col-target { width: 90px; }
-col.col-target { width: 90px; }
-col.col-cur { width: 80px; }
-col.col-rate { width: 55px; }
-col.col-fix { width: 75px; }
-col.col-day-profit { width: 70px; }
-col.col-profit { width: 75px; }
-col.col-percent { width: 60px; }
-col.col-act { width: 165px; }
+/* === 컬럼 폭 설정 (다이어트 적용) === */
+col.col-no { width: 30px; }
+col.col-group { width: 35px; }
+col.col-status { width: 45px; } 
+col.col-code { width: 55px; }
+col.col-name { width: 90px; } 
+col.col-date { width: 78px; } /* 줄임 */
+col.col-sdate { width: 78px; } /* 줄임 */
+col.col-avg { width: 65px; }
+col.col-qty { width: 35px; }
+col.col-inv { width: 75px; }
+col.col-target { width: 85px; }
+col.col-target { width: 85px; }
+col.col-cur { width: 70px; } /* 줄임 */
+col.col-rate { width: 50px; }
+col.col-fix { width: 70px; } /* 줄임 */
+col.col-day-profit { width: 65px; } /* 줄임 */
+col.col-profit { width: 65px; } /* 줄임 */
+col.col-percent { width: 55px; }
+col.col-act { width: 150px; }
 
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
@@ -181,7 +183,7 @@ col.col-act { width: 165px; }
     <col class="col-group"> 
     <col class="col-status"> <col class="col-code">
     <col class="col-name">
-    <col class="col-date">
+    <col class="col-date"> <col class="col-sdate">
     <col class="col-avg">
     <col class="col-qty">
     <col class="col-inv">
@@ -194,7 +196,8 @@ col.col-act { width: 165px; }
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th><th>보유일</th>
+    <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th>
+    <th>매수일</th><th>매도일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th>
     <th>당일손익</th><th>누적손익</th><th>%</th><th>동작</th>
@@ -294,21 +297,17 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 // ==========================================
 // 3. 렌더링
 // ==========================================
-// [신규] 개별 행의 당일 손익 계산 함수 (합산 시 사용)
 function calculateDayProfitForRow(r) {
   if (!r.qty || Number(r.qty) <= 0) return 0;
 
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   
-  // 전체 누적 손익 계산 (당일 매수 시 필요)
   const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
 
   if (r.date === todayStr) {
-      // 1. 당일 매수: 누적 손익이 곧 당일 손익
       return won;
   } else {
-      // 2. 과거 매수: (평가액 - 전일종가) * 수량
       const curPrice = r.cur || 0;
       const rate = r.dRate || 0;
       let prevClose = 0;
@@ -341,7 +340,6 @@ function aggregateRows(originalRows) {
         const statusKey = isSold ? 'SOLD' : 'ACTIVE';
         const key = r.code + '_' + r.group + '_' + statusKey; 
         
-        // 당일 손익 미리 계산
         const rowDayProfit = calculateDayProfitForRow(r);
 
         if (!map.has(key)) {
@@ -353,7 +351,7 @@ function aggregateRows(originalRows) {
                 _totalQty: Number(r.qty) || 0, 
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
                 _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0),
-                _totalDayProfit: rowDayProfit // 당일손익 합계 초기화
+                _totalDayProfit: rowDayProfit
             });
         } else {
             const entry = map.get(key);
@@ -365,8 +363,11 @@ function aggregateRows(originalRows) {
             entry._totalQty += curQty; 
             entry._totalInvest += curInvest;
             entry._totalSellAmt += curSellAmt;
-            entry._totalDayProfit += rowDayProfit; // 당일손익 누적
+            entry._totalDayProfit += rowDayProfit;
             if (r.date < entry.date) entry.date = r.date;
+            if (r.sellDate && (!entry.sellDate || r.sellDate > entry.sellDate)) {
+                entry.sellDate = r.sellDate;
+            }
         }
     });
     
@@ -377,9 +378,7 @@ function aggregateRows(originalRows) {
             if(val._totalSellAmt > 0 && val._totalQty > 0) {
                 val.fix = Math.round(val._totalSellAmt / val._totalQty);
             }
-            // 당일손익은 누적된 값을 그대로 사용
             val.dayProfit = val._totalDayProfit;
-
             val.name = val.name + ` (합:${val._count})`; 
         }
         result.push(val);
@@ -425,7 +424,6 @@ function render(){
     const readOnlyAttr = r._isAgg ? 'readonly style="color:#aaa"' : '';
     const dr = r.dRate || 0; const drClass = dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : ''); const drStr = (dr > 0 ? '+' : '') + dr + '%';
 
-    // [상태 배지]
     let statusHtml = '';
     const rQty = Number(r.qty) || 0;
     const rFix = Number(r.fix) || 0;
@@ -441,7 +439,10 @@ function render(){
       <td>${statusHtml}</td>
       <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
       <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
+      
       <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
+      <td><input type="date" class="sdate" value="${r.sellDate||''}" ${readOnlyAttr}></td>
+
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
       <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
@@ -478,13 +479,22 @@ function render(){
                 let val = el.value; if(isNum) val = toNum(val); 
                 rows[realIndex][key] = val; 
                 saveRows();
-                if (key === 'fix') moveSoldRowToBottom(realIndex);
+                
+                if (key === 'fix') {
+                    if (val > 0 && !rows[realIndex].sellDate) {
+                        const today = new Date();
+                        rows[realIndex].sellDate = today.getFullYear() + '-' + 
+                                                   String(today.getMonth()+1).padStart(2,'0') + '-' + 
+                                                   String(today.getDate()).padStart(2,'0');
+                    }
+                    moveSoldRowToBottom(realIndex);
+                } 
                 else if (key === 'date') render();
                 else updateRowCalculation(tr, rows[realIndex]);
             });
             if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
         };
-        bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date');
+        bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date'); bindInput('.sdate', 'sellDate');
         bindInput('.avg', 'avg', true); bindInput('.qty', 'qty', true);
         bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
         bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
@@ -535,14 +545,10 @@ function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0); tr.querySelector('.inv').value = fmt(r.inv);
   const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
   
-  // [당일손익 계산]
   let dayProfit = 0;
-  
-  // 합산 행인 경우, 미리 계산된 값을 사용
   if (r._isAgg && r.dayProfit !== undefined) {
       dayProfit = r.dayProfit;
   } else {
-      // 일반 행인 경우 직접 계산 (calculateDayProfitForRow 함수와 동일 로직)
       dayProfit = calculateDayProfitForRow(r);
   }
 
@@ -676,8 +682,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    // 복사 기능에도 당일손익 추가
-    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
+    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
     const hideWatch = $('#hideWatchToggle').checked; 
 
@@ -689,6 +694,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     });
     
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
@@ -704,7 +712,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(r.qty>0 && r.fix>0) statusStr='매도됨';
       else if(r.qty>0 && !r.fix) statusStr='운영중';
       
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
     });
     navigator.clipboard.writeText(headers.join('\t') + '\n' + lines.join('\n')).then(()=>alert(`복사 완료 (${visibleRows.length}건)`));
   });
