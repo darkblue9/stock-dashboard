@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v6.7 (합산손익 정밀수정)</title>
+<title>마녀의 주식 대시보드 v6.9 (매수/매도일 기록)</title>
 <style>
 /* === 기본 스타일 (13px 적용) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -19,7 +19,7 @@ input,select,button{font:inherit; font-size:13px;}
 
 /* 날짜 셀 스타일 */
 #grid td input[type="date"] { 
-    font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -0.5px; 
+    font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -0.5px; width: 100%;
 }
 
 td input[readonly]{background:#f9f9f9; color:#555}
@@ -98,8 +98,9 @@ col.col-no { width: 32px; }
 col.col-group { width: 40px; }
 col.col-status { width: 50px; } 
 col.col-code { width: 60px; }
-col.col-name { width: 100px; } 
-col.col-date { width: 90px; }
+col.col-name { width: 90px; } 
+col.col-date { width: 90px; } /* 매수일 */
+col.col-sdate { width: 90px; } /* 매도일 */
 col.col-avg { width: 70px; }
 col.col-qty { width: 40px; }
 col.col-inv { width: 80px; }
@@ -181,8 +182,7 @@ col.col-act { width: 165px; }
     <col class="col-group"> 
     <col class="col-status"> <col class="col-code">
     <col class="col-name">
-    <col class="col-date">
-    <col class="col-avg">
+    <col class="col-date"> <col class="col-sdate"> <col class="col-avg">
     <col class="col-qty">
     <col class="col-inv">
     <col class="col-target">
@@ -194,7 +194,8 @@ col.col-act { width: 165px; }
     <col class="col-act">
   </colgroup>
   <thead><tr>
-    <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th><th>보유일</th>
+    <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th>
+    <th>매수일</th><th>매도일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
     <th>상목표</th><th>하목표</th><th>현재가</th><th>일일%</th><th>매도가</th>
     <th>당일손익</th><th>누적손익</th><th>%</th><th>동작</th>
@@ -294,21 +295,17 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 // ==========================================
 // 3. 렌더링
 // ==========================================
-// [신규] 개별 행의 당일 손익 계산 함수 (합산 시 사용)
 function calculateDayProfitForRow(r) {
   if (!r.qty || Number(r.qty) <= 0) return 0;
 
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
   
-  // 전체 누적 손익 계산 (당일 매수 시 필요)
   const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
 
   if (r.date === todayStr) {
-      // 1. 당일 매수: 누적 손익이 곧 당일 손익
       return won;
   } else {
-      // 2. 과거 매수: (평가액 - 전일종가) * 수량
       const curPrice = r.cur || 0;
       const rate = r.dRate || 0;
       let prevClose = 0;
@@ -341,7 +338,6 @@ function aggregateRows(originalRows) {
         const statusKey = isSold ? 'SOLD' : 'ACTIVE';
         const key = r.code + '_' + r.group + '_' + statusKey; 
         
-        // 당일 손익 미리 계산
         const rowDayProfit = calculateDayProfitForRow(r);
 
         if (!map.has(key)) {
@@ -353,7 +349,7 @@ function aggregateRows(originalRows) {
                 _totalQty: Number(r.qty) || 0, 
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
                 _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0),
-                _totalDayProfit: rowDayProfit // 당일손익 합계 초기화
+                _totalDayProfit: rowDayProfit
             });
         } else {
             const entry = map.get(key);
@@ -365,8 +361,12 @@ function aggregateRows(originalRows) {
             entry._totalQty += curQty; 
             entry._totalInvest += curInvest;
             entry._totalSellAmt += curSellAmt;
-            entry._totalDayProfit += rowDayProfit; // 당일손익 누적
+            entry._totalDayProfit += rowDayProfit;
             if (r.date < entry.date) entry.date = r.date;
+            // [신규] 합산 시 가장 최근 매도일 표시
+            if (r.sellDate && (!entry.sellDate || r.sellDate > entry.sellDate)) {
+                entry.sellDate = r.sellDate;
+            }
         }
     });
     
@@ -377,9 +377,7 @@ function aggregateRows(originalRows) {
             if(val._totalSellAmt > 0 && val._totalQty > 0) {
                 val.fix = Math.round(val._totalSellAmt / val._totalQty);
             }
-            // 당일손익은 누적된 값을 그대로 사용
             val.dayProfit = val._totalDayProfit;
-
             val.name = val.name + ` (합:${val._count})`; 
         }
         result.push(val);
@@ -441,7 +439,10 @@ function render(){
       <td>${statusHtml}</td>
       <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
       <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
+      
       <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
+      <td><input type="date" class="sdate" value="${r.sellDate||''}" ${readOnlyAttr}></td>
+
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
       <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
@@ -478,13 +479,23 @@ function render(){
                 let val = el.value; if(isNum) val = toNum(val); 
                 rows[realIndex][key] = val; 
                 saveRows();
-                if (key === 'fix') moveSoldRowToBottom(realIndex);
+                
+                // [신규] 매도가 입력 시, 매도일이 비어있으면 오늘 날짜 자동 입력
+                if (key === 'fix') {
+                    if (val > 0 && !rows[realIndex].sellDate) {
+                        const today = new Date();
+                        rows[realIndex].sellDate = today.getFullYear() + '-' + 
+                                                   String(today.getMonth()+1).padStart(2,'0') + '-' + 
+                                                   String(today.getDate()).padStart(2,'0');
+                    }
+                    moveSoldRowToBottom(realIndex);
+                } 
                 else if (key === 'date') render();
                 else updateRowCalculation(tr, rows[realIndex]);
             });
             if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
         };
-        bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date');
+        bindInput('.code', 'code'); bindInput('.name', 'name'); bindInput('.date', 'date'); bindInput('.sdate', 'sellDate');
         bindInput('.avg', 'avg', true); bindInput('.qty', 'qty', true);
         bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
         bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
@@ -537,12 +548,9 @@ function updateRowCalculation(tr, r){
   
   // [당일손익 계산]
   let dayProfit = 0;
-  
-  // 합산 행인 경우, 미리 계산된 값을 사용
   if (r._isAgg && r.dayProfit !== undefined) {
       dayProfit = r.dayProfit;
   } else {
-      // 일반 행인 경우 직접 계산 (calculateDayProfitForRow 함수와 동일 로직)
       dayProfit = calculateDayProfitForRow(r);
   }
 
@@ -676,8 +684,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    // 복사 기능에도 당일손익 추가
-    const headers = ['구분', '상태', '코드', '이름', '보유일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
+    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
     const hideWatch = $('#hideWatchToggle').checked; 
 
@@ -689,6 +696,9 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     });
     
+    const today = new Date();
+    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
@@ -704,7 +714,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(r.qty>0 && r.fix>0) statusStr='매도됨';
       else if(r.qty>0 && !r.fix) statusStr='운영중';
       
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', getDDay(r.date)+(r.date?`(${r.date})`:''), r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
     });
     navigator.clipboard.writeText(headers.join('\t') + '\n' + lines.join('\n')).then(()=>alert(`복사 완료 (${visibleRows.length}건)`));
   });
