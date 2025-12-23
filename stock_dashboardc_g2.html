@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.0 (컬럼폭 최적화)</title>
+<title>마녀의 주식 대시보드 v7.1 (자산현황 추가)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -139,7 +139,7 @@ col.col-act { width: 150px; }
     </div>
   </details>
   
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
     <div style="display:flex; align-items:center; gap:10px;">
       <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
@@ -577,21 +577,36 @@ function updateRowCalculation(tr, r){
 
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
+  let operatingInvest = 0; let operatingAsset = 0; // [신규] 자산현황 변수
+
   rows.forEach(r => {
     if(currentFilter === 'short' && r.group === 'long') return;
     if(currentFilter === 'long' && r.group === 'short') return;
     const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
     totalProfit += won; 
-    if(r.qty > 0 && !r.fix) { operatingProfit += won; }
+    
+    // 운영중인 종목 (수량 있고 매도가 없음)
+    if(r.qty > 0 && !r.fix) { 
+        operatingProfit += won; 
+        operatingInvest += (r.avg || 0) * r.qty; // 투입금
+        operatingAsset += (r.cur || 0) * r.qty;  // 자산(평가액)
+    }
   });
+
   const elTotal = $('#totalProfit');
   if(elTotal) { elTotal.textContent = fmt(Math.round(totalProfit)); elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
   const elOperating = $('#operatingProfit');
   if(elOperating) { elOperating.textContent = fmt(Math.round(operatingProfit)); elOperating.className = operatingProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
+  
   const topEl = $('#topTotal');
   if(topEl) {
     const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2'; 
-    topEl.innerHTML = `총: ${fmt(Math.round(totalProfit))} <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>`;
+    // [신규] 투입금, 자산 현황 추가
+    topEl.innerHTML = `
+        총: ${fmt(Math.round(totalProfit))} 
+        <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
+        <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
+    `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
 }
