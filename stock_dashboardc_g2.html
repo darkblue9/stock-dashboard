@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.1 (자산현황 추가)</title>
+<title>마녀의 주식 대시보드 v7.2 (실수방지 기능)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -100,18 +100,18 @@ col.col-group { width: 35px; }
 col.col-status { width: 45px; } 
 col.col-code { width: 55px; }
 col.col-name { width: 90px; } 
-col.col-date { width: 78px; } /* 줄임 */
-col.col-sdate { width: 78px; } /* 줄임 */
+col.col-date { width: 78px; } 
+col.col-sdate { width: 78px; } 
 col.col-avg { width: 65px; }
 col.col-qty { width: 35px; }
 col.col-inv { width: 75px; }
 col.col-target { width: 85px; }
 col.col-target { width: 85px; }
-col.col-cur { width: 70px; } /* 줄임 */
+col.col-cur { width: 70px; } 
 col.col-rate { width: 50px; }
-col.col-fix { width: 70px; } /* 줄임 */
-col.col-day-profit { width: 65px; } /* 줄임 */
-col.col-profit { width: 65px; } /* 줄임 */
+col.col-fix { width: 70px; } 
+col.col-day-profit { width: 65px; } 
+col.col-profit { width: 65px; } 
 col.col-percent { width: 55px; }
 col.col-act { width: 150px; }
 
@@ -501,7 +501,14 @@ function render(){
         tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
         const btnUp = tr.querySelector('.up'); if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
         const btnDn = tr.querySelector('.dn'); if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
-        tr.querySelector('.grp-btn').onclick = () => { rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; saveRows(); render(); };
+        // [신규] 실수방지 기능 적용
+        tr.querySelector('.grp-btn').onclick = () => { 
+            if(confirm('장투/단타 그룹을 변경하시겠습니까?')) {
+                rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; 
+                saveRows(); 
+                render(); 
+            }
+        };
         tr.querySelector('.row-no').addEventListener('click', (e) => {
              if(e.target.classList.contains('memo-tooltip')) return;
              const newMemo = prompt("📝 메모:", rows[realIndex].memo || "");
