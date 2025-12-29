@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.2 (실수방지 기능)</title>
+<title>마녀의 주식 대시보드 v7.3 (행별 초기화)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -31,11 +31,12 @@ td input[readonly]{background:#f9f9f9; color:#555}
 /* === 버튼 및 액션 === */
 .actions{display:inline-flex; align-items:center; gap:2px; white-space:nowrap; justify-content:center}
 .mv{display:inline-flex; gap:1px}
-.mv button, .del, .chart-btn {
+.mv button, .del, .chart-btn, .reset-row-btn {
     width: 24px; height: 24px; font-size: 12px; padding: 0; 
     cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px;
 }
 .del{ width:auto; padding:0 6px; background:#ffebee; border-color:#ef9a9a; color:#c62828; }
+.reset-row-btn { width:auto; padding:0 6px; background:#e0f2f1; border-color:#80cbc4; color:#00695c; }
 .chart-btn{ width:auto; padding:0 6px; background:#e3f2fd; border-color:#90caf9; color:#1565c0; }
 #resetBtn { background: #333; color: #fff; border: 1px solid #000; font-weight: bold; padding: 4px 8px; font-size: 12px;}
 
@@ -113,7 +114,7 @@ col.col-fix { width: 70px; }
 col.col-day-profit { width: 65px; } 
 col.col-profit { width: 65px; } 
 col.col-percent { width: 55px; }
-col.col-act { width: 150px; }
+col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
 
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
@@ -467,7 +468,8 @@ function render(){
           <span class="mv" style="${r._isAgg ? 'display:none' : ''}">
             <button class="up">▲</button><button class="dn">▼</button>
           </span>
-          ${r._isAgg ? '<span style="font-size:11px; color:#aaa;">묶음</span>' : '<button class="del">삭제</button>'}
+          ${r._isAgg ? '<span style="font-size:11px; color:#aaa;">묶음</span>' : 
+            '<button class="reset-row-btn" title="초기화">초</button><button class="del">삭제</button>'}
         </span>
       </td>`;
     tb.appendChild(tr);
@@ -501,7 +503,22 @@ function render(){
         tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
         const btnUp = tr.querySelector('.up'); if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
         const btnDn = tr.querySelector('.dn'); if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
-        // [신규] 실수방지 기능 적용
+        
+        // [신규] 행별 초기화 기능
+        tr.querySelector('.reset-row-btn').onclick = () => {
+            if(confirm('이 종목의 매매 기록을 초기화하시겠습니까?\n(매수/매도일, 가격, 수량 등이 지워집니다)')) {
+                rows[realIndex].date = '';      // 매수일 초기화
+                rows[realIndex].sellDate = '';  // 매도일 초기화
+                rows[realIndex].avg = 0;        // 매수가 초기화
+                rows[realIndex].qty = 0;        // 주수 초기화
+                rows[realIndex].fix = 0;        // 매도가 초기화
+                rows[realIndex].utarget = 0;    // 상목표 초기화
+                rows[realIndex].ltarget = 0;    // 하목표 초기화
+                saveRows();
+                render();
+            }
+        };
+
         tr.querySelector('.grp-btn').onclick = () => { 
             if(confirm('장투/단타 그룹을 변경하시겠습니까?')) {
                 rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; 
