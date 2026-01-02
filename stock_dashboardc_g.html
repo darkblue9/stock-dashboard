@@ -234,7 +234,7 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
-const FEE_BUY=0.00015, FEE_SELL=0.00015, TAX_SELL=0.00230; 
+const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
 function calcProfit(avg,cur,fix,qty){
   const base=(fix && fix!==0) ? fix : cur;
   if(!avg||!qty||!base) return {won:0,pct:0};
