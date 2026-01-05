@@ -3,12 +3,11 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.3 (행별 초기화)</title>
+<title>마녀의 주식 대시보드 v7.6.1 (긴급수정)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
 table{width:100%; border-collapse:collapse; table-layout:fixed; margin-top:5px;}
-/* 셀 좌우 여백을 줄여서 공간 확보 (padding: 3px 1px) */
 th,td{border:1px solid #ccc; padding:3px 1px; text-align:center; vertical-align:middle; height: 34px;}
 input,select,button{font:inherit; font-size:13px;}
 
@@ -17,11 +16,7 @@ input,select,button{font:inherit; font-size:13px;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; font-weight: bold; }
 #grid td input.code { text-align: center; color: #666; font-size: 12px; }
-
-/* 날짜 셀 스타일 (폰트 11px로 유지하되 폭 맞춤) */
-#grid td input[type="date"] { 
-    font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -1px; width: 100%;
-}
+#grid td input[type="date"] { font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -1px; width: 100%; }
 
 td input[readonly]{background:#f9f9f9; color:#555}
 .status{font-size:12px; font-weight:bold;}
@@ -31,10 +26,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 /* === 버튼 및 액션 === */
 .actions{display:inline-flex; align-items:center; gap:2px; white-space:nowrap; justify-content:center}
 .mv{display:inline-flex; gap:1px}
-.mv button, .del, .chart-btn, .reset-row-btn {
-    width: 24px; height: 24px; font-size: 12px; padding: 0; 
-    cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px;
-}
+.mv button, .del, .chart-btn, .reset-row-btn { width: 24px; height: 24px; font-size: 12px; padding: 0; cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px; }
 .del{ width:auto; padding:0 6px; background:#ffebee; border-color:#ef9a9a; color:#c62828; }
 .reset-row-btn { width:auto; padding:0 6px; background:#e0f2f1; border-color:#80cbc4; color:#00695c; }
 .chart-btn{ width:auto; padding:0 6px; background:#e3f2fd; border-color:#90caf9; color:#1565c0; }
@@ -53,68 +45,45 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
 .filter-btn.active { background: #424242; color: #fff; border-color: #000; font-weight: bold;}
 
-/* === 그룹 배지 버튼 === */
 .grp-btn { width: 26px; height: 22px; font-size: 11px; font-weight:bold; border:1px solid rgba(0,0,0,0.2); border-radius: 4px; cursor:pointer; padding:0;}
 .grp-short { background: #ffebee; color: #c62828; } 
 .grp-long  { background: #e3f2fd; color: #1565c0; }
 
-/* === 상태 배지 === */
 .status-badge { display:inline-block; padding:2px 4px; border-radius:4px; color:#fff; font-size:11px; line-height:1.2; font-weight:normal; min-width: 32px;}
-.st-active { background:#00897b; } /* 운영중 */
-.st-sold { background:#757575; }   /* 매도됨 */
-.st-watch { background:#fff; color:#999; border:1px solid #ddd; } /* 관망 */
+.st-active { background:#00897b; }
+.st-sold { background:#757575; } 
+.st-watch { background:#fff; color:#999; border:1px solid #ddd; }
 
-/* === 토스트, 상단 배지 === */
 .top-total{position:fixed; top:50px; right:15px; z-index:6; background:#fff; border:2px solid #ccc; padding:6px 12px; border-radius:10px; box-shadow:0 4px 14px rgba(0,0,0,.1); font-weight:bold; font-size: 14px;}
 .total-pos{color:#d32f2f; border-color:#ef9a9a;} 
 .total-neg{color:#1976d2; border-color:#90caf9;}
 
-/* === 트렌드 점 === */
 td.cur-cell { position: relative; }
 td.cur-cell .trend-dots { position: absolute; right: 2px; bottom: 2px; display:flex; gap:1px; pointer-events:none;} 
 .trend-dot { width:5px; height:5px; border-radius:50%; background:#ddd; opacity:.5 } 
 .trend-dot.up   { background:#d32f2f; opacity:1; }
 .trend-dot.down { background:#1976d2; opacity:1; }
 
-/* === D-Day 배지 === */
 .date-cell { display:flex; flex-direction:column; align-items:center; gap:0px; }
 .d-day-badge { font-size:9px; font-weight:bold; color:#fff; background:#90a4ae; padding:1px 3px; border-radius:3px; display:inline-block; min-width:24px; line-height: 1.1; margin-bottom: 1px;}
 .d-day-badge.new { background: #ff9800; } 
 .d-day-badge.old { background: #607d8b; } 
 
-/* === 메모 기능 === */
 .row-no { cursor: pointer; position: relative; }
 .row-no:hover { background-color: #e3f2fd; } 
 .memo-indicator { position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: red; border-radius: 50%; display: none;}
 .row-no.has-memo .memo-indicator { display: block; }
-.memo-tooltip {
-    display: none; position: absolute; left: 100%; top: 0; z-index: 1000;
-    background: #333; color: #fff; padding: 6px 10px; border-radius: 4px;
-    font-size: 12px; width: 200px; text-align: left; white-space: pre-wrap;
-    box-shadow: 2px 2px 5px rgba(0,0,0,0.3);
-}
+.memo-tooltip { display: none; position: absolute; left: 100%; top: 0; z-index: 1000; background: #333; color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 12px; width: 200px; text-align: left; white-space: pre-wrap; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
 .row-no:hover .memo-tooltip { display: block; }
 
-/* === 컬럼 폭 설정 (다이어트 적용) === */
-col.col-no { width: 30px; }
-col.col-group { width: 35px; }
-col.col-status { width: 45px; } 
-col.col-code { width: 55px; }
-col.col-name { width: 90px; } 
-col.col-date { width: 78px; } 
-col.col-sdate { width: 78px; } 
-col.col-avg { width: 65px; }
-col.col-qty { width: 35px; }
-col.col-inv { width: 75px; }
-col.col-target { width: 85px; }
-col.col-target { width: 85px; }
-col.col-cur { width: 70px; } 
-col.col-rate { width: 50px; }
-col.col-fix { width: 70px; } 
-col.col-day-profit { width: 65px; } 
-col.col-profit { width: 65px; } 
-col.col-percent { width: 55px; }
-col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
+col.col-no { width: 30px; } col.col-group { width: 35px; } col.col-status { width: 45px; } 
+col.col-code { width: 55px; } col.col-name { width: 90px; } 
+col.col-date { width: 78px; } col.col-sdate { width: 78px; } 
+col.col-avg { width: 65px; } col.col-qty { width: 35px; } col.col-inv { width: 75px; }
+col.col-target { width: 85px; } col.col-target { width: 85px; }
+col.col-cur { width: 70px; } col.col-rate { width: 50px; }
+col.col-fix { width: 70px; } col.col-day-profit { width: 65px; } col.col-profit { width: 65px; } 
+col.col-percent { width: 55px; } col.col-act { width: 190px; }
 
 @media (max-width: 600px) {
   .actions { flex-wrap: wrap; }
@@ -127,7 +96,7 @@ col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
 
 <div>
   <details>
-    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/프록시)</summary>
+    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/백업)</summary>
     <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
       <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -135,15 +104,25 @@ col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
         <label>Code <input id="codeParam" value="code" style="width:45px"></label>
         <label>Price <input id="priceKey" value="price" style="width:45px"></label>
         <label>주기(초) <input id="pollSec" type="number" value="10" min="2" style="width:45px"></label>
-        <button id="resetBtn" style="margin-left:auto;">⚠️데이터 초기화</button>
+        
+        <button id="backupBtn" style="background:#00897b; color:#fff; border:1px solid #004d40; margin-left:auto; font-size:12px;">💾 백업(저장)</button>
+        <button id="restoreBtn" style="background:#ff9800; color:#fff; border:1px solid #e65100; font-size:12px;">📂 복구(불러오기)</button>
+        <input type="file" id="fileInput" style="display:none;" accept=".json">
+        
+        <button id="resetBtn" style="background: #333; color: #fff; border: 1px solid #000; font-weight: bold; margin-left:10px; font-size:12px;">⚠️초기화</button>
       </div>
     </div>
   </details>
   
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
-    <div style="display:flex; align-items:center; gap:10px;">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
+      <div style="display:flex; align-items:center; background:#e8f5e9; padding:2px 6px; border-radius:4px; border:1px solid #c8e6c9;">
+        <label title="대시보드에서 삭제한 종목들의 수익금 합계 (엑셀 이관 후)">🏛️ 기실현수익(아카이브): 
+          <input id="archivedProfitInput" value="0" style="width:80px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
+        </label>
+      </div>
     </div>
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
   </div>
@@ -180,21 +159,12 @@ col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
 
 <table id="grid">
   <colgroup>
-    <col class="col-no">
-    <col class="col-group"> 
-    <col class="col-status"> <col class="col-code">
-    <col class="col-name">
+    <col class="col-no"> <col class="col-group"> <col class="col-status"> <col class="col-code"> <col class="col-name">
     <col class="col-date"> <col class="col-sdate">
-    <col class="col-avg">
-    <col class="col-qty">
-    <col class="col-inv">
-    <col class="col-target">
-    <col class="col-target">
-    <col class="col-cur">
-	<col class="col-rate">
-    <col class="col-fix">
-    <col class="col-day-profit"> <col class="col-profit">     <col class="col-percent">
-    <col class="col-act">
+    <col class="col-avg"> <col class="col-qty"> <col class="col-inv">
+    <col class="col-target"> <col class="col-target">
+    <col class="col-cur"> <col class="col-rate">
+    <col class="col-fix"> <col class="col-day-profit"> <col class="col-profit"> <col class="col-percent"> <col class="col-act">
   </colgroup>
   <thead><tr>
     <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th>
@@ -209,7 +179,7 @@ col.col-act { width: 190px; } /* 버튼 추가로 폭 늘림 */
 <div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
   <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> 
   | <span id="operatingLabel">운영중 손익</span>: <span id="operatingProfit" class="profit-neg">0</span> 
-  (수수료 0.26% 반영)
+  (미니닥스 우대계좌 수수료 0.1640527% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -234,7 +204,7 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
-const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
+const FEE_BUY=0.00015, FEE_SELL=0.00015, TAX_SELL=0.00230; 
 function calcProfit(avg,cur,fix,qty){
   const base=(fix && fix!==0) ? fix : cur;
   if(!avg||!qty||!base) return {won:0,pct:0};
@@ -243,6 +213,50 @@ function calcProfit(avg,cur,fix,qty){
   const totalCost = (buyAmt * FEE_BUY) + (sellAmt * (FEE_SELL + TAX_SELL));
   const profit = sellAmt - buyAmt - totalCost;
   return {won:profit, pct: (profit/buyAmt)*100};
+}
+
+// [핵심] updateRowCalculation을 최상위 스코프에 정의하여 안전하게 호출 가능하도록 변경
+function updateRowCalculation(tr, r){
+  r.inv = (r.avg||0) * (r.qty||0); 
+  const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
+  
+  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+  
+  let dayProfit = 0;
+  if (r._isAgg && r.dayProfit !== undefined) {
+      dayProfit = r.dayProfit;
+  } else {
+      dayProfit = calculateDayProfitForRow(r);
+  }
+
+  const dp = tr.querySelector('.dp');
+  if(dp) {
+      dp.textContent = fmt(Math.round(dayProfit));
+      dp.className = 'dp ' + (dayProfit >= 0 ? 'profit-pos' : 'profit-neg');
+  }
+
+  const pw = tr.querySelector('.pw'); const pp = tr.querySelector('.pp');
+  if(pw) { pw.textContent = fmt(Math.round(won)); pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg'); }
+  if(pp) { pp.textContent = pct.toFixed(2) + '%'; pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg'); }
+  
+  if (!r.fix || r.fix == 0) {
+      const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
+      if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
+      if(ltDot) ltDot.className = 'dot lt-dot' + (r.ltarget > 0 && r.cur <= r.ltarget ? ' blue blink-blue-dot' : '');
+  }
+
+  const curTd = tr.querySelector('.cur').closest('td');
+  if(r.qty > 0 && !r.fix) { 
+      curTd.style.backgroundColor = '#e0f7fa'; 
+      const elQty = tr.querySelector('.qty'); if(elQty) elQty.style.fontWeight = 'bold'; 
+  }
+  else if(r.fix > 0) { 
+      curTd.style.backgroundColor = ''; 
+      const elFix = tr.querySelector('.fix'); if(elFix) elFix.closest('td').style.backgroundColor = '#eee'; 
+  }
+  else { curTd.style.backgroundColor = ''; }
+  
+  updateHistoryVisuals(tr, r.code, r.cur);
 }
 
 function getDDay(dateStr) {
@@ -274,23 +288,31 @@ function loadAll(){
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
+  const savedSettings = loadJSON(KEY_SET,{});
+  let arch = savedSettings.archivedProfit;
+  if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
+
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev', 
     apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, loadJSON(KEY_SET,{}));
+  }, savedSettings, { archivedProfit: arch });
+  
   applySettingsToUI();
 }
 
 function applySettingsToUI(){
-  $('#apiBase').value = settings.apiBase;
-  $('#apiMode').value = settings.apiMode;
-  $('#pollSec').value = settings.pollSec;
+  const elBase = $('#apiBase'); if(elBase) elBase.value = settings.apiBase;
+  const elMode = $('#apiMode'); if(elMode) elMode.value = settings.apiMode;
+  const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
+  const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
 }
 
 function saveSettings(){
   settings.apiBase=$('#apiBase').value.trim();
   settings.apiMode=$('#apiMode').value;
   settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
+  const elArch = $('#archivedProfitInput'); 
+  if(elArch) settings.archivedProfit = toNum(elArch.value); 
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -300,24 +322,15 @@ function saveRows(){ saveJSON(KEY_ROWS,rows); }
 // ==========================================
 function calculateDayProfitForRow(r) {
   if (!r.qty || Number(r.qty) <= 0) return 0;
-
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-  
   const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-
-  if (r.date === todayStr) {
-      return won;
-  } else {
-      const curPrice = r.cur || 0;
-      const rate = r.dRate || 0;
-      let prevClose = 0;
-      if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
-      
+  if (r.date === todayStr) { return won; } 
+  else {
+      const curPrice = r.cur || 0; const rate = r.dRate || 0;
+      let prevClose = 0; if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
       const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
-      if (evalPrice > 0 && prevClose > 0) {
-          return (evalPrice - prevClose) * r.qty;
-      }
+      if (evalPrice > 0 && prevClose > 0) { return (evalPrice - prevClose) * r.qty; }
   }
   return 0;
 }
@@ -334,21 +347,16 @@ function aggregateRows(originalRows) {
         
         const isSold = (r.fix > 0);
         if(hideSold && isSold) return;
-
         const isWatch = (!r.qty || Number(r.qty) <= 0);
         if(hideWatch && isWatch) return;
 
         const statusKey = isSold ? 'SOLD' : 'ACTIVE';
         const key = r.code + '_' + r.group + '_' + statusKey; 
-        
         const rowDayProfit = calculateDayProfitForRow(r);
 
         if (!map.has(key)) {
             map.set(key, { 
-                ...r, 
-                _idx: originalIndex, 
-                _isAgg: false, 
-                _count: 1, 
+                ...r, _idx: originalIndex, _isAgg: false, _count: 1, 
                 _totalQty: Number(r.qty) || 0, 
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
                 _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0),
@@ -359,16 +367,11 @@ function aggregateRows(originalRows) {
             const curQty = Number(r.qty) || 0;
             const curInvest = (Number(r.avg) || 0) * curQty;
             const curSellAmt = (Number(r.fix) || 0) * curQty;
-
             entry._isAgg = true; entry._count++; 
-            entry._totalQty += curQty; 
-            entry._totalInvest += curInvest;
-            entry._totalSellAmt += curSellAmt;
+            entry._totalQty += curQty; entry._totalInvest += curInvest; entry._totalSellAmt += curSellAmt;
             entry._totalDayProfit += rowDayProfit;
             if (r.date < entry.date) entry.date = r.date;
-            if (r.sellDate && (!entry.sellDate || r.sellDate > entry.sellDate)) {
-                entry.sellDate = r.sellDate;
-            }
+            if (r.sellDate && (!entry.sellDate || r.sellDate > entry.sellDate)) { entry.sellDate = r.sellDate; }
         }
     });
     
@@ -376,9 +379,7 @@ function aggregateRows(originalRows) {
         if (val._isAgg) { 
             val.qty = val._totalQty; 
             val.avg = val._totalQty > 0 ? Math.round(val._totalInvest / val._totalQty) : 0; 
-            if(val._totalSellAmt > 0 && val._totalQty > 0) {
-                val.fix = Math.round(val._totalSellAmt / val._totalQty);
-            }
+            if(val._totalSellAmt > 0 && val._totalQty > 0) { val.fix = Math.round(val._totalSellAmt / val._totalQty); }
             val.dayProfit = val._totalDayProfit;
             val.name = val.name + ` (합:${val._count})`; 
         }
@@ -388,25 +389,23 @@ function aggregateRows(originalRows) {
 }
 
 function render(){
-  const tb=$('#tbody'); 
-  if(!tb) return;
+  const tb=$('#tbody'); if(!tb) return;
   tb.innerHTML='';
   const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
+  
+  if (!Array.isArray(rows)) { rows = []; }
+
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
       const hideWatch = $('#hideWatchToggle').checked; 
-
       rows.forEach((r, i) => {
           if(currentFilter === 'short' && r.group === 'long') return;
           if(currentFilter === 'long' && r.group === 'short') return;
-          
           if(hideSold && r.fix > 0) return;
-
           const isWatch = (!r.qty || Number(r.qty) <= 0);
           if(hideWatch && isWatch) return;
-
           displayRows.push({ ...r, _idx: i, _isAgg: false });
       });
   }
@@ -440,27 +439,21 @@ function render(){
       <td>${statusHtml}</td>
       <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
       <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
-      
       <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
       <td><input type="date" class="sdate" value="${r.sellDate||''}" ${readOnlyAttr}></td>
-
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
       <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" step="${stepVal}" value="${r.utarget||''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
-      
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
       </td>
       <td><span style="font-size:11px;" class="${drClass}">${drStr}</span></td>
-
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
-      
       <td><span class="dp">0</span></td>
       <td><span class="pw">0</span></td>
-      
       <td><span class="pp">0%</span></td>
       <td>
         <span class="actions">
@@ -481,13 +474,10 @@ function render(){
                 let val = el.value; if(isNum) val = toNum(val); 
                 rows[realIndex][key] = val; 
                 saveRows();
-                
                 if (key === 'fix') {
                     if (val > 0 && !rows[realIndex].sellDate) {
                         const today = new Date();
-                        rows[realIndex].sellDate = today.getFullYear() + '-' + 
-                                                   String(today.getMonth()+1).padStart(2,'0') + '-' + 
-                                                   String(today.getDate()).padStart(2,'0');
+                        rows[realIndex].sellDate = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
                     }
                     moveSoldRowToBottom(realIndex);
                 } 
@@ -504,26 +494,23 @@ function render(){
         const btnUp = tr.querySelector('.up'); if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
         const btnDn = tr.querySelector('.dn'); if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
         
-        // [신규] 행별 초기화 기능
         tr.querySelector('.reset-row-btn').onclick = () => {
             if(confirm('이 종목의 매매 기록을 초기화하시겠습니까?\n(매수/매도일, 가격, 수량 등이 지워집니다)')) {
-                rows[realIndex].date = '';      // 매수일 초기화
-                rows[realIndex].sellDate = '';  // 매도일 초기화
-                rows[realIndex].avg = 0;        // 매수가 초기화
-                rows[realIndex].qty = 0;        // 주수 초기화
-                rows[realIndex].fix = 0;        // 매도가 초기화
-                rows[realIndex].utarget = 0;    // 상목표 초기화
-                rows[realIndex].ltarget = 0;    // 하목표 초기화
+                rows[realIndex].date = '';      
+                rows[realIndex].sellDate = '';  
+                rows[realIndex].avg = 0;        
+                rows[realIndex].qty = 0;        
+                rows[realIndex].fix = 0;        
+                rows[realIndex].utarget = 0;    
+                rows[realIndex].ltarget = 0;    
                 saveRows();
                 render();
             }
         };
-
         tr.querySelector('.grp-btn').onclick = () => { 
             if(confirm('장투/단타 그룹을 변경하시겠습니까?')) {
                 rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; 
-                saveRows(); 
-                render(); 
+                saveRows(); render(); 
             }
         };
         tr.querySelector('.row-no').addEventListener('click', (e) => {
@@ -560,62 +547,27 @@ function moveSoldRowToBottom(index) {
     } else { render(); }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const mergeToggle = $('#mergeToggle'); if(mergeToggle) mergeToggle.addEventListener('change', render);
-    const hideWatchToggle = $('#hideWatchToggle'); if(hideWatchToggle) hideWatchToggle.addEventListener('change', render);
-});
-
-function updateRowCalculation(tr, r){
-  r.inv = (r.avg||0) * (r.qty||0); tr.querySelector('.inv').value = fmt(r.inv);
-  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-  
-  let dayProfit = 0;
-  if (r._isAgg && r.dayProfit !== undefined) {
-      dayProfit = r.dayProfit;
-  } else {
-      dayProfit = calculateDayProfitForRow(r);
-  }
-
-  const dp = tr.querySelector('.dp');
-  if(dp) {
-      dp.textContent = fmt(Math.round(dayProfit));
-      dp.className = 'dp ' + (dayProfit >= 0 ? 'profit-pos' : 'profit-neg');
-  }
-
-  const pw = tr.querySelector('.pw'); const pp = tr.querySelector('.pp');
-  if(pw) { pw.textContent = fmt(Math.round(won)); pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg'); }
-  if(pp) { pp.textContent = pct.toFixed(2) + '%'; pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg'); }
-  
-  if (!r.fix || r.fix == 0) {
-      const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
-      if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
-      if(ltDot) ltDot.className = 'dot lt-dot' + (r.ltarget > 0 && r.cur <= r.ltarget ? ' blue blink-blue-dot' : '');
-  }
-
-  const curTd = tr.querySelector('.cur').closest('td');
-  if(r.qty > 0 && !r.fix) { curTd.style.backgroundColor = '#e0f7fa'; tr.querySelector('.qty').style.fontWeight = 'bold'; }
-  else if(r.fix > 0) { curTd.style.backgroundColor = ''; tr.querySelector('.fix').closest('td').style.backgroundColor = '#eee'; }
-  else { curTd.style.backgroundColor = ''; }
-  updateHistoryVisuals(tr, r.code, r.cur);
-}
-
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
-  let operatingInvest = 0; let operatingAsset = 0; // [신규] 자산현황 변수
+  let operatingInvest = 0; let operatingAsset = 0; 
 
-  rows.forEach(r => {
-    if(currentFilter === 'short' && r.group === 'long') return;
-    if(currentFilter === 'long' && r.group === 'short') return;
-    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-    totalProfit += won; 
-    
-    // 운영중인 종목 (수량 있고 매도가 없음)
-    if(r.qty > 0 && !r.fix) { 
-        operatingProfit += won; 
-        operatingInvest += (r.avg || 0) * r.qty; // 투입금
-        operatingAsset += (r.cur || 0) * r.qty;  // 자산(평가액)
-    }
-  });
+  if(rows && rows.length > 0) {
+      rows.forEach(r => {
+        if(currentFilter === 'short' && r.group === 'long') return;
+        if(currentFilter === 'long' && r.group === 'short') return;
+        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+        totalProfit += won; 
+        
+        if(r.qty > 0 && !r.fix) { 
+            operatingProfit += won; 
+            operatingInvest += (r.avg || 0) * r.qty; 
+            operatingAsset += (r.cur || 0) * r.qty;  
+        }
+      });
+  }
+
+  const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
+  totalProfit += archived;
 
   const elTotal = $('#totalProfit');
   if(elTotal) { elTotal.textContent = fmt(Math.round(totalProfit)); elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
@@ -625,7 +577,6 @@ function updateTotalProfit(){
   const topEl = $('#topTotal');
   if(topEl) {
     const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2'; 
-    // [신규] 투입금, 자산 현황 추가
     topEl.innerHTML = `
         총: ${fmt(Math.round(totalProfit))} 
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
@@ -700,6 +651,50 @@ function showChart(code, name){
   $('#chartTitle').textContent = `${name} (${code})`; $('#chartModal').style.display = 'flex';
 }
 
+// [신규] 백업 및 복구 기능
+function downloadBackup() {
+    const data = { rows: rows, settings: settings, timestamp: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stock_dashboard_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function restoreBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.rows && Array.isArray(data.rows)) {
+                if (confirm(`백업 파일(${data.timestamp})로 복구하시겠습니까?\n현재 데이터는 덮어씌워집니다.`)) {
+                    rows = data.rows;
+                    if (data.settings) {
+                        settings = Object.assign(settings, data.settings);
+                    }
+                    saveRows();
+                    saveSettings();
+                    applySettingsToUI();
+                    render();
+                    alert('복구 완료!');
+                }
+            } else {
+                alert('잘못된 백업 파일 형식입니다.');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('파일을 읽는 중 오류가 발생했습니다.');
+        }
+    };
+    reader.readAsText(file);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   $$('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { $$('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentFilter = btn.dataset.filter; render(); }); });
   $('#hideSoldToggle').addEventListener('change', render);
@@ -733,9 +728,6 @@ document.addEventListener('DOMContentLoaded', () => {
         return true;
     });
     
-    const today = new Date();
-    const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-
     const lines = visibleRows.map(r => {
       const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
       const drStr = (r.dRate || 0) + '%';
@@ -763,7 +755,25 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
-  loadAll(); render(); startPolling();
+  // [백업/복구 이벤트 연결]
+  $('#backupBtn').addEventListener('click', downloadBackup);
+  $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
+  $('#fileInput').addEventListener('change', restoreBackup);
+
+  try {
+      loadAll(); 
+      render(); 
+      startPolling();
+      
+      const archiveInput = $('#archivedProfitInput'); 
+      if(archiveInput) {
+          archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
+      }
+  } catch(e) {
+      console.error("초기화 중 오류 발생:", e);
+      alert("설정 로드 중 오류가 발생했습니다. '데이터 초기화' 버튼을 눌러주세요.");
+  }
 });
 </script>
 </body>
