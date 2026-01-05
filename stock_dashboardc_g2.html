@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.6 (백업/복구)</title>
+<title>마녀의 주식 대시보드 v7.6.1 (긴급수정)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -96,7 +96,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 
 <div>
   <details>
-    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/프록시)</summary>
+    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/백업)</summary>
     <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
       <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -115,9 +115,14 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
   </details>
   
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
-    <div style="display:flex; align-items:center; gap:10px;">
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
       <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
+      <div style="display:flex; align-items:center; background:#e8f5e9; padding:2px 6px; border-radius:4px; border:1px solid #c8e6c9;">
+        <label title="대시보드에서 삭제한 종목들의 수익금 합계 (엑셀 이관 후)">🏛️ 기실현수익(아카이브): 
+          <input id="archivedProfitInput" value="0" style="width:80px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
+        </label>
+      </div>
     </div>
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
   </div>
@@ -210,6 +215,50 @@ function calcProfit(avg,cur,fix,qty){
   return {won:profit, pct: (profit/buyAmt)*100};
 }
 
+// [핵심] updateRowCalculation을 최상위 스코프에 정의하여 안전하게 호출 가능하도록 변경
+function updateRowCalculation(tr, r){
+  r.inv = (r.avg||0) * (r.qty||0); 
+  const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
+  
+  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+  
+  let dayProfit = 0;
+  if (r._isAgg && r.dayProfit !== undefined) {
+      dayProfit = r.dayProfit;
+  } else {
+      dayProfit = calculateDayProfitForRow(r);
+  }
+
+  const dp = tr.querySelector('.dp');
+  if(dp) {
+      dp.textContent = fmt(Math.round(dayProfit));
+      dp.className = 'dp ' + (dayProfit >= 0 ? 'profit-pos' : 'profit-neg');
+  }
+
+  const pw = tr.querySelector('.pw'); const pp = tr.querySelector('.pp');
+  if(pw) { pw.textContent = fmt(Math.round(won)); pw.className = 'pw ' + (won >= 0 ? 'profit-pos' : 'profit-neg'); }
+  if(pp) { pp.textContent = pct.toFixed(2) + '%'; pp.className = 'pp ' + (pct >= 0 ? 'profit-pos' : 'profit-neg'); }
+  
+  if (!r.fix || r.fix == 0) {
+      const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
+      if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
+      if(ltDot) ltDot.className = 'dot lt-dot' + (r.ltarget > 0 && r.cur <= r.ltarget ? ' blue blink-blue-dot' : '');
+  }
+
+  const curTd = tr.querySelector('.cur').closest('td');
+  if(r.qty > 0 && !r.fix) { 
+      curTd.style.backgroundColor = '#e0f7fa'; 
+      const elQty = tr.querySelector('.qty'); if(elQty) elQty.style.fontWeight = 'bold'; 
+  }
+  else if(r.fix > 0) { 
+      curTd.style.backgroundColor = ''; 
+      const elFix = tr.querySelector('.fix'); if(elFix) elFix.closest('td').style.backgroundColor = '#eee'; 
+  }
+  else { curTd.style.backgroundColor = ''; }
+  
+  updateHistoryVisuals(tr, r.code, r.cur);
+}
+
 function getDDay(dateStr) {
     if(!dateStr) return '';
     const target = new Date(dateStr); target.setHours(0,0,0,0);
@@ -239,23 +288,31 @@ function loadAll(){
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
+  const savedSettings = loadJSON(KEY_SET,{});
+  let arch = savedSettings.archivedProfit;
+  if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
+
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev', 
     apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, loadJSON(KEY_SET,{}));
+  }, savedSettings, { archivedProfit: arch });
+  
   applySettingsToUI();
 }
 
 function applySettingsToUI(){
-  $('#apiBase').value = settings.apiBase;
-  $('#apiMode').value = settings.apiMode;
-  $('#pollSec').value = settings.pollSec;
+  const elBase = $('#apiBase'); if(elBase) elBase.value = settings.apiBase;
+  const elMode = $('#apiMode'); if(elMode) elMode.value = settings.apiMode;
+  const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
+  const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
 }
 
 function saveSettings(){
   settings.apiBase=$('#apiBase').value.trim();
   settings.apiMode=$('#apiMode').value;
   settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
+  const elArch = $('#archivedProfitInput'); 
+  if(elArch) settings.archivedProfit = toNum(elArch.value); 
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -336,6 +393,9 @@ function render(){
   tb.innerHTML='';
   const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
+  
+  if (!Array.isArray(rows)) { rows = []; }
+
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
@@ -471,22 +531,43 @@ function render(){
   updateTotalProfit();
 }
 
+function moveSoldRowToBottom(index) {
+    const target = rows[index];
+    if (target.qty > 0 && target.fix > 0) {
+        rows.splice(index, 1);
+        let insertAt = rows.length; 
+        for(let i=0; i < rows.length; i++){
+            if(!rows[i].qty || Number(rows[i].qty) <= 0) {
+                insertAt = i;
+                break;
+            }
+        }
+        rows.splice(insertAt, 0, target);
+        saveRows(); render(); 
+    } else { render(); }
+}
+
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
 
-  rows.forEach(r => {
-    if(currentFilter === 'short' && r.group === 'long') return;
-    if(currentFilter === 'long' && r.group === 'short') return;
-    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-    totalProfit += won; 
-    
-    if(r.qty > 0 && !r.fix) { 
-        operatingProfit += won; 
-        operatingInvest += (r.avg || 0) * r.qty; 
-        operatingAsset += (r.cur || 0) * r.qty;  
-    }
-  });
+  if(rows && rows.length > 0) {
+      rows.forEach(r => {
+        if(currentFilter === 'short' && r.group === 'long') return;
+        if(currentFilter === 'long' && r.group === 'short') return;
+        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+        totalProfit += won; 
+        
+        if(r.qty > 0 && !r.fix) { 
+            operatingProfit += won; 
+            operatingInvest += (r.avg || 0) * r.qty; 
+            operatingAsset += (r.cur || 0) * r.qty;  
+        }
+      });
+  }
+
+  const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
+  totalProfit += archived;
 
   const elTotal = $('#totalProfit');
   if(elTotal) { elTotal.textContent = fmt(Math.round(totalProfit)); elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
@@ -570,7 +651,7 @@ function showChart(code, name){
   $('#chartTitle').textContent = `${name} (${code})`; $('#chartModal').style.display = 'flex';
 }
 
-// [신규] 백업 기능
+// [신규] 백업 및 복구 기능
 function downloadBackup() {
     const data = { rows: rows, settings: settings, timestamp: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -584,7 +665,6 @@ function downloadBackup() {
     URL.revokeObjectURL(url);
 }
 
-// [신규] 복구 기능
 function restoreBackup(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -680,7 +760,20 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', restoreBackup);
 
-  loadAll(); render(); startPolling();
+  try {
+      loadAll(); 
+      render(); 
+      startPolling();
+      
+      const archiveInput = $('#archivedProfitInput'); 
+      if(archiveInput) {
+          archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
+      }
+  } catch(e) {
+      console.error("초기화 중 오류 발생:", e);
+      alert("설정 로드 중 오류가 발생했습니다. '데이터 초기화' 버튼을 눌러주세요.");
+  }
 });
 </script>
 </body>
