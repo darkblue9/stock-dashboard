@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.5.1 (안전모드)</title>
+<title>마녀의 주식 대시보드 v7.6 (백업/복구)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -97,7 +97,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 
 <div>
   <details>
-    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/프록시)</summary>
+    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/백업)</summary>
     <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
       <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -105,7 +105,12 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
         <label>Code <input id="codeParam" value="code" style="width:45px"></label>
         <label>Price <input id="priceKey" value="price" style="width:45px"></label>
         <label>주기(초) <input id="pollSec" type="number" value="10" min="2" style="width:45px"></label>
-        <button id="resetBtn" style="margin-left:auto;">⚠️데이터 초기화</button>
+        
+        <button id="backupBtn" style="background:#00897b; color:#fff; border:1px solid #004d40; margin-left:auto;">💾 백업(저장)</button>
+        <button id="restoreBtn" style="background:#ff9800; color:#fff; border:1px solid #e65100;">📂 복구(불러오기)</button>
+        <input type="file" id="fileInput" style="display:none;" accept=".json">
+        
+        <button id="resetBtn" style="background: #333; color: #fff; border: 1px solid #000; font-weight: bold; margin-left:10px;">⚠️초기화</button>
       </div>
     </div>
   </details>
@@ -235,13 +240,14 @@ function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 
 function loadAll(){
   const savedRows = loadJSON(KEY_ROWS,[]);
+  // 기존 데이터가 있으면 그대로 가져오고, 없으면 빈 배열
   rows = savedRows.map(r => {
     if(typeof r !== 'object' || r === null) return { group: 'short' };
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
   const savedSettings = loadJSON(KEY_SET,{});
-  // [안전장치] archivedProfit이 숫자가 아니면 0으로 초기화
+  // 안전장치: 아카이브 수익이 없으면 0으로 시작
   let arch = savedSettings.archivedProfit;
   if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
 
@@ -345,6 +351,10 @@ function render(){
   tb.innerHTML='';
   const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
+  
+  // 안전장치: rows가 정의되지 않았거나 배열이 아닐 경우 대비
+  if (!Array.isArray(rows)) { rows = []; }
+
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
@@ -484,18 +494,21 @@ function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
 
-  rows.forEach(r => {
-    if(currentFilter === 'short' && r.group === 'long') return;
-    if(currentFilter === 'long' && r.group === 'short') return;
-    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-    totalProfit += won; 
-    
-    if(r.qty > 0 && !r.fix) { 
-        operatingProfit += won; 
-        operatingInvest += (r.avg || 0) * r.qty; 
-        operatingAsset += (r.cur || 0) * r.qty;  
-    }
-  });
+  // rows가 비어있을 경우 대비
+  if(rows && rows.length > 0) {
+      rows.forEach(r => {
+        if(currentFilter === 'short' && r.group === 'long') return;
+        if(currentFilter === 'long' && r.group === 'short') return;
+        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+        totalProfit += won; 
+        
+        if(r.qty > 0 && !r.fix) { 
+            operatingProfit += won; 
+            operatingInvest += (r.avg || 0) * r.qty; 
+            operatingAsset += (r.cur || 0) * r.qty;  
+        }
+      });
+  }
 
   // [안전장치] settings가 로드되지 않았을 경우 0 처리
   const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
@@ -583,6 +596,50 @@ function showChart(code, name){
   $('#chartTitle').textContent = `${name} (${code})`; $('#chartModal').style.display = 'flex';
 }
 
+// [신규] 백업 및 복구 기능
+function downloadBackup() {
+    const data = { rows: rows, settings: settings, timestamp: new Date().toISOString() };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `stock_dashboard_backup_${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function restoreBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const data = JSON.parse(e.target.result);
+            if (data.rows && Array.isArray(data.rows)) {
+                if (confirm(`백업 파일(${data.timestamp})로 복구하시겠습니까?\n현재 데이터는 덮어씌워집니다.`)) {
+                    rows = data.rows;
+                    if (data.settings) {
+                        settings = Object.assign(settings, data.settings);
+                    }
+                    saveRows();
+                    saveSettings();
+                    applySettingsToUI();
+                    render();
+                    alert('복구 완료!');
+                }
+            } else {
+                alert('잘못된 백업 파일 형식입니다.');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('파일을 읽는 중 오류가 발생했습니다.');
+        }
+    };
+    reader.readAsText(file);
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   $$('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { $$('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentFilter = btn.dataset.filter; render(); }); });
   $('#hideSoldToggle').addEventListener('change', render);
@@ -643,13 +700,17 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
-  // [중요] 초기화 순서 안전하게 보장
+  // [백업/복구 이벤트 연결]
+  $('#backupBtn').addEventListener('click', downloadBackup);
+  $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
+  $('#fileInput').addEventListener('change', restoreBackup);
+
+  // [안전한 시작]
   try {
       loadAll(); 
       render(); 
       startPolling();
       
-      // 기실현수익 이벤트는 loadAll 이후에 바인딩
       const archiveInput = $('#archivedProfitInput'); 
       if(archiveInput) {
           archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
