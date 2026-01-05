@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.5 (기실현수익 관리)</title>
+<title>마녀의 주식 대시보드 v7.5.1 (안전모드)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -240,27 +240,31 @@ function loadAll(){
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
+  const savedSettings = loadJSON(KEY_SET,{});
+  // [안전장치] archivedProfit이 숫자가 아니면 0으로 초기화
+  let arch = savedSettings.archivedProfit;
+  if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
+
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev', 
-    apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price',
-    archivedProfit: 0 // [신규] 기실현수익 저장용
-  }, loadJSON(KEY_SET,{}));
+    apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
+  }, savedSettings, { archivedProfit: arch });
+  
   applySettingsToUI();
 }
 
 function applySettingsToUI(){
-  $('#apiBase').value = settings.apiBase;
-  $('#apiMode').value = settings.apiMode;
-  $('#pollSec').value = settings.pollSec;
-  // [신규] 아카이브 수익 표시
-  $('#archivedProfitInput').value = fmt(settings.archivedProfit);
+  const elBase = $('#apiBase'); if(elBase) elBase.value = settings.apiBase;
+  const elMode = $('#apiMode'); if(elMode) elMode.value = settings.apiMode;
+  const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
+  const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
 }
 
 function saveSettings(){
   settings.apiBase=$('#apiBase').value.trim();
   settings.apiMode=$('#apiMode').value;
   settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
-  settings.archivedProfit = toNum($('#archivedProfitInput').value); // [신규] 저장
+  settings.archivedProfit = toNum($('#archivedProfitInput').value); 
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -476,18 +480,6 @@ function render(){
   updateTotalProfit();
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-    const mergeToggle = $('#mergeToggle'); if(mergeToggle) mergeToggle.addEventListener('change', render);
-    const hideWatchToggle = $('#hideWatchToggle'); if(hideWatchToggle) hideWatchToggle.addEventListener('change', render);
-    // [신규] 기실현수익 입력 이벤트
-    const archiveInput = $('#archivedProfitInput'); 
-    if(archiveInput) {
-        archiveInput.addEventListener('change', saveSettings);
-        archiveInput.addEventListener('change', updateTotalProfit);
-        archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
-    }
-});
-
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
@@ -505,8 +497,8 @@ function updateTotalProfit(){
     }
   });
 
-  // [신규] 기실현수익(아카이브) 합산
-  const archived = Number(settings.archivedProfit || 0);
+  // [안전장치] settings가 로드되지 않았을 경우 0 처리
+  const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
   totalProfit += archived;
 
   const elTotal = $('#totalProfit');
@@ -651,7 +643,22 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
-  loadAll(); render(); startPolling();
+  // [중요] 초기화 순서 안전하게 보장
+  try {
+      loadAll(); 
+      render(); 
+      startPolling();
+      
+      // 기실현수익 이벤트는 loadAll 이후에 바인딩
+      const archiveInput = $('#archivedProfitInput'); 
+      if(archiveInput) {
+          archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
+      }
+  } catch(e) {
+      console.error("초기화 중 오류 발생:", e);
+      alert("설정 로드 중 오류가 발생했습니다. '데이터 초기화' 버튼을 눌러주세요.");
+  }
 });
 </script>
 </body>
