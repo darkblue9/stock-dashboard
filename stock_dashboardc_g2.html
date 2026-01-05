@@ -23,7 +23,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .profit-pos{color:#d32f2f; font-weight:bold}
 .profit-neg{color:#1976d2; font-weight:bold}
 
-/* === 버튼 등 === */
+/* === 버튼 및 액션 === */
 .actions{display:inline-flex; align-items:center; gap:2px; white-space:nowrap; justify-content:center}
 .mv{display:inline-flex; gap:1px}
 .mv button, .del, .chart-btn, .reset-row-btn { width: 24px; height: 24px; font-size: 12px; padding: 0; cursor:pointer; border:1px solid #999; background:#eee; border-radius:3px; }
@@ -32,14 +32,14 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .chart-btn{ width:auto; padding:0 6px; background:#e3f2fd; border-color:#90caf9; color:#1565c0; }
 #resetBtn { background: #333; color: #fff; border: 1px solid #000; font-weight: bold; padding: 4px 8px; font-size: 12px;}
 
-/* === 점, 타겟 셀 === */
+/* === 목표가 점 === */
 .dot{width:6px; height:6px; border-radius:50%; background:#ccc; display:inline-block; flex-shrink:0;}
 .dot.red{background:#ff1744}
 .dot.blue{background:#2979ff}
 .target-cell{display:flex; align-items:center; gap:2px; justify-content:center; width:100%;}
 .target-cell input { flex: 1; min-width: 0; font-size: 12px; }
 
-/* === 상단 바 === */
+/* === 상단 필터 바 === */
 .filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 6px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
 .filter-label { font-weight: bold; margin-right: 4px; font-size: 13px;}
 .filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
@@ -76,7 +76,6 @@ td.cur-cell .trend-dots { position: absolute; right: 2px; bottom: 2px; display:f
 .memo-tooltip { display: none; position: absolute; left: 100%; top: 0; z-index: 1000; background: #333; color: #fff; padding: 6px 10px; border-radius: 4px; font-size: 12px; width: 200px; text-align: left; white-space: pre-wrap; box-shadow: 2px 2px 5px rgba(0,0,0,0.3); }
 .row-no:hover .memo-tooltip { display: block; }
 
-/* === 컬럼 폭 === */
 col.col-no { width: 30px; } col.col-group { width: 35px; } col.col-status { width: 45px; } 
 col.col-code { width: 55px; } col.col-name { width: 90px; } 
 col.col-date { width: 78px; } col.col-sdate { width: 78px; } 
@@ -97,7 +96,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 
 <div>
   <details>
-    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/백업)</summary>
+    <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/프록시)</summary>
     <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
       <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -106,24 +105,19 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
         <label>Price <input id="priceKey" value="price" style="width:45px"></label>
         <label>주기(초) <input id="pollSec" type="number" value="10" min="2" style="width:45px"></label>
         
-        <button id="backupBtn" style="background:#00897b; color:#fff; border:1px solid #004d40; margin-left:auto;">💾 백업(저장)</button>
-        <button id="restoreBtn" style="background:#ff9800; color:#fff; border:1px solid #e65100;">📂 복구(불러오기)</button>
+        <button id="backupBtn" style="background:#00897b; color:#fff; border:1px solid #004d40; margin-left:auto; font-size:12px;">💾 백업(저장)</button>
+        <button id="restoreBtn" style="background:#ff9800; color:#fff; border:1px solid #e65100; font-size:12px;">📂 복구(불러오기)</button>
         <input type="file" id="fileInput" style="display:none;" accept=".json">
         
-        <button id="resetBtn" style="background: #333; color: #fff; border: 1px solid #000; font-weight: bold; margin-left:10px;">⚠️초기화</button>
+        <button id="resetBtn" style="background: #333; color: #fff; border: 1px solid #000; font-weight: bold; margin-left:10px; font-size:12px;">⚠️초기화</button>
       </div>
     </div>
   </details>
   
   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:4px;">
-    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+    <div style="display:flex; align-items:center; gap:10px;">
       <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
-      <div style="display:flex; align-items:center; background:#e8f5e9; padding:2px 6px; border-radius:4px; border:1px solid #c8e6c9;">
-        <label title="대시보드에서 삭제한 종목들의 수익금 합계 (엑셀 이관 후)">🏛️ 기실현수익(아카이브): 
-          <input id="archivedProfitInput" value="0" style="width:80px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
-        </label>
-      </div>
     </div>
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
   </div>
@@ -240,37 +234,28 @@ function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 
 function loadAll(){
   const savedRows = loadJSON(KEY_ROWS,[]);
-  // 기존 데이터가 있으면 그대로 가져오고, 없으면 빈 배열
   rows = savedRows.map(r => {
     if(typeof r !== 'object' || r === null) return { group: 'short' };
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
-  const savedSettings = loadJSON(KEY_SET,{});
-  // 안전장치: 아카이브 수익이 없으면 0으로 시작
-  let arch = savedSettings.archivedProfit;
-  if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
-
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev', 
     apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, savedSettings, { archivedProfit: arch });
-  
+  }, loadJSON(KEY_SET,{}));
   applySettingsToUI();
 }
 
 function applySettingsToUI(){
-  const elBase = $('#apiBase'); if(elBase) elBase.value = settings.apiBase;
-  const elMode = $('#apiMode'); if(elMode) elMode.value = settings.apiMode;
-  const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
-  const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
+  $('#apiBase').value = settings.apiBase;
+  $('#apiMode').value = settings.apiMode;
+  $('#pollSec').value = settings.pollSec;
 }
 
 function saveSettings(){
   settings.apiBase=$('#apiBase').value.trim();
   settings.apiMode=$('#apiMode').value;
   settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
-  settings.archivedProfit = toNum($('#archivedProfitInput').value); 
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -351,10 +336,6 @@ function render(){
   tb.innerHTML='';
   const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
-  
-  // 안전장치: rows가 정의되지 않았거나 배열이 아닐 경우 대비
-  if (!Array.isArray(rows)) { rows = []; }
-
   if (useMerge) { displayRows = aggregateRows(rows); } 
   else {
       const hideSold = $('#hideSoldToggle').checked;
@@ -494,25 +475,18 @@ function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
 
-  // rows가 비어있을 경우 대비
-  if(rows && rows.length > 0) {
-      rows.forEach(r => {
-        if(currentFilter === 'short' && r.group === 'long') return;
-        if(currentFilter === 'long' && r.group === 'short') return;
-        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-        totalProfit += won; 
-        
-        if(r.qty > 0 && !r.fix) { 
-            operatingProfit += won; 
-            operatingInvest += (r.avg || 0) * r.qty; 
-            operatingAsset += (r.cur || 0) * r.qty;  
-        }
-      });
-  }
-
-  // [안전장치] settings가 로드되지 않았을 경우 0 처리
-  const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
-  totalProfit += archived;
+  rows.forEach(r => {
+    if(currentFilter === 'short' && r.group === 'long') return;
+    if(currentFilter === 'long' && r.group === 'short') return;
+    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+    totalProfit += won; 
+    
+    if(r.qty > 0 && !r.fix) { 
+        operatingProfit += won; 
+        operatingInvest += (r.avg || 0) * r.qty; 
+        operatingAsset += (r.cur || 0) * r.qty;  
+    }
+  });
 
   const elTotal = $('#totalProfit');
   if(elTotal) { elTotal.textContent = fmt(Math.round(totalProfit)); elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
@@ -596,7 +570,7 @@ function showChart(code, name){
   $('#chartTitle').textContent = `${name} (${code})`; $('#chartModal').style.display = 'flex';
 }
 
-// [신규] 백업 및 복구 기능
+// [신규] 백업 기능
 function downloadBackup() {
     const data = { rows: rows, settings: settings, timestamp: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -610,6 +584,7 @@ function downloadBackup() {
     URL.revokeObjectURL(url);
 }
 
+// [신규] 복구 기능
 function restoreBackup(event) {
     const file = event.target.files[0];
     if (!file) return;
@@ -705,21 +680,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', restoreBackup);
 
-  // [안전한 시작]
-  try {
-      loadAll(); 
-      render(); 
-      startPolling();
-      
-      const archiveInput = $('#archivedProfitInput'); 
-      if(archiveInput) {
-          archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
-          archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
-      }
-  } catch(e) {
-      console.error("초기화 중 오류 발생:", e);
-      alert("설정 로드 중 오류가 발생했습니다. '데이터 초기화' 버튼을 눌러주세요.");
-  }
+  loadAll(); render(); startPolling();
 });
 </script>
 </body>
