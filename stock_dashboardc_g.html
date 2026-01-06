@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.6.2 (손익분리)</title>
+<title>마녀의 주식 대시보드 v7.6.4 (최종수정)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -180,7 +180,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 <div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
   <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> 
   | <span id="operatingLabel">운영중 손익</span>: <span id="operatingProfit" class="profit-neg">0</span> 
-  (미니닥스 우대계좌 수수료 0.1640527% 반영)
+  (수수료 0.26% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -205,7 +205,7 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
-const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
+const FEE_BUY=0.00015, FEE_SELL=0.00015, TAX_SELL=0.00230; 
 function calcProfit(avg,cur,fix,qty){
   const base=(fix && fix!==0) ? fix : cur;
   if(!avg||!qty||!base) return {won:0,pct:0};
@@ -532,22 +532,6 @@ function render(){
   updateTotalProfit();
 }
 
-function moveSoldRowToBottom(index) {
-    const target = rows[index];
-    if (target.qty > 0 && target.fix > 0) {
-        rows.splice(index, 1);
-        let insertAt = rows.length; 
-        for(let i=0; i < rows.length; i++){
-            if(!rows[i].qty || Number(rows[i].qty) <= 0) {
-                insertAt = i;
-                break;
-            }
-        }
-        rows.splice(insertAt, 0, target);
-        saveRows(); render(); 
-    } else { render(); }
-}
-
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
@@ -719,43 +703,43 @@ document.addEventListener('DOMContentLoaded', () => {
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
   });
 
-  $('#copyTxtBtn').addEventListener('click', () => {
-    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
-    const hideSold = $('#hideSoldToggle').checked;
-    const hideWatch = $('#hideWatchToggle').checked; 
-
-    const visibleRows = rows.filter(r => {
-        if(currentFilter === 'short' && r.group === 'long') return false;
-        if(currentFilter === 'long' && r.group === 'short') return false;
-        if(hideSold && r.fix > 0) return false;
-        if(hideWatch && (!r.qty || Number(r.qty) <= 0)) return false; 
-        return true;
-    });
-    
-    const lines = visibleRows.map(r => {
-      const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-      const drStr = (r.dRate || 0) + '%';
-      
-      let dayProfit = 0;
-      if (r._isAgg && r.dayProfit !== undefined) {
-          dayProfit = r.dayProfit;
-      } else {
-          dayProfit = calculateDayProfitForRow(r);
-      }
-
-      let statusStr = '관망';
-      if(r.qty>0 && r.fix>0) statusStr='매도됨';
-      else if(r.qty>0 && !r.fix) statusStr='운영중';
-      
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
-    });
-    navigator.clipboard.writeText(headers.join('\t') + '\n' + lines.join('\n')).then(()=>alert(`복사 완료 (${visibleRows.length}건)`));
-  });
-
   const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
   const CLOUD_ID = "stock-dashboard-rows";
-  $('#cloudSaveBtn').addEventListener('click', async () => { if(!confirm('클라우드에 저장?')) return; try { const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { method: "POST", headers: { "Content-Type": "text/plain;charset=UTF-8" }, body: JSON.stringify({ rows, settings, ts: Date.now() }) }); if(res.ok) alert('저장 성공!'); else alert('실패: ' + res.status); } catch(e) { alert('에러: '+e.message); } });
-  $('#cloudLoadBtn').addEventListener('click', async () => { if(!confirm('불러오면 덮어씌워집니다.')) return; try { const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID); const json = await res.json(); if(json.rows) { rows = json.rows.map(r => ({ ...r, group: r.group || 'short' })); saveRows(); } if(json.settings) { settings = Object.assign(settings, json.settings); saveSettings(); applySettingsToUI(); } render(); alert('불러오기 완료'); } catch(e) { alert('에러: '+e.message); } });
+  $('#cloudSaveBtn').addEventListener('click', async () => { 
+      if(!confirm('클라우드에 저장?')) return; 
+      // [수정] 저장 전, 현재 입력창의 값을 settings에 확실히 반영
+      saveSettings();
+      try { 
+          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { 
+              method: "POST", 
+              headers: { "Content-Type": "text/plain;charset=UTF-8" }, 
+              body: JSON.stringify({ rows, settings, ts: Date.now() }) 
+          }); 
+          if(res.ok) alert('저장 성공!'); 
+          else alert('실패: ' + res.status); 
+      } catch(e) { alert('에러: '+e.message); } 
+  });
+  
+  $('#cloudLoadBtn').addEventListener('click', async () => { 
+      if(!confirm('불러오면 덮어씌워집니다.')) return; 
+      try { 
+          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID); 
+          const json = await res.json(); 
+          if(json.rows) { 
+              rows = json.rows.map(r => ({ ...r, group: r.group || 'short' })); 
+              saveRows(); 
+          } 
+          if(json.settings) { 
+              settings = Object.assign(settings, json.settings); 
+              // [수정] 순서 중요: UI에 먼저 뿌리고 -> 그 값을 다시 저장 (덮어쓰기 방지)
+              applySettingsToUI(); 
+              saveSettings(); 
+          } 
+          render(); 
+          alert('불러오기 완료'); 
+      } catch(e) { alert('에러: '+e.message); } 
+  });
+
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
