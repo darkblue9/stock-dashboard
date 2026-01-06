@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 대시보드 v7.6.6 (복사강화)</title>
+<title>마녀의 대시보드 v7.6.7 (정렬/복사수정)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -205,6 +205,7 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
+// [요청 반영] 수수료
 const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
 
 function calcProfit(avg,cur,fix,qty){
@@ -217,7 +218,7 @@ function calcProfit(avg,cur,fix,qty){
   return {won:profit, pct: (profit/buyAmt)*100};
 }
 
-// [핵심] 함수 정의를 최상단으로 이동
+// [핵심] 함수 정의 최상단 이동
 function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0); 
   const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
@@ -277,9 +278,6 @@ const KEY_SET ='set_v5_final';
 let rows=[], settings={};
 let currentFilter = 'short'; 
 
-// ==========================================
-// 2. 데이터 관리
-// ==========================================
 function loadJSON(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } }
 function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
 
@@ -319,9 +317,6 @@ function saveSettings(){
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
-// ==========================================
-// 3. 렌더링
-// ==========================================
 function calculateDayProfitForRow(r) {
   if (!r.qty || Number(r.qty) <= 0) return 0;
   const today = new Date();
@@ -481,6 +476,7 @@ function render(){
                         const today = new Date();
                         rows[realIndex].sellDate = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
                     }
+                    // [정렬 수정] 숫자 변환 보장 후 이동
                     moveSoldRowToBottom(realIndex);
                 } 
                 else if (key === 'date') render();
@@ -533,6 +529,27 @@ function render(){
   updateTotalProfit();
 }
 
+// [정렬 수정] 안전한 이동 로직
+function moveSoldRowToBottom(index) {
+    const target = rows[index];
+    const tQty = Number(target.qty) || 0;
+    const tFix = Number(target.fix) || 0;
+    
+    if (tQty > 0 && tFix > 0) {
+        rows.splice(index, 1);
+        let insertAt = rows.length; 
+        for(let i=0; i < rows.length; i++){
+            // 관망(qty<=0) 종목이 나오면 그 바로 위에 넣기
+            if(!rows[i].qty || Number(rows[i].qty) <= 0) {
+                insertAt = i;
+                break;
+            }
+        }
+        rows.splice(insertAt, 0, target);
+        saveRows(); render(); 
+    } else { render(); }
+}
+
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0; 
   let operatingInvest = 0; let operatingAsset = 0; 
@@ -552,7 +569,6 @@ function updateTotalProfit(){
       });
   }
 
-  // [수정] 단타 모드('short')가 아닐 때만 아카이브 수익 더하기 (장투 및 전체 모드)
   if (currentFilter !== 'short') {
       const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
       totalProfit += archived;
@@ -736,7 +752,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const textToCopy = headers.join('\t') + '\n' + lines.join('\n');
     
-    // [신규] 복사 실패 시 Fallback 로직 추가 (파일 보안 정책 우회용)
+    // [복사 수정] 권한 문제 시 강제 복사 시도
     if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(textToCopy)
             .then(() => alert(`복사 완료 (${visibleRows.length}건)`))
@@ -753,7 +769,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ta.select();
       try {
           document.execCommand('copy');
-          alert(`복사 완료 (${count}건)`);
+          alert(`복사 완료 (강제) (${count}건)`);
       } catch (e) {
           alert('복사 실패: ' + e);
       }
