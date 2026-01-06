@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 대시보드 v7.6.5 (손익분리)</title>
+<title>마녀의 대시보드 v7.6.6 (복사강화)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -205,7 +205,6 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
-// [요청사항 반영] 수수료율 변경
 const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
 
 function calcProfit(avg,cur,fix,qty){
@@ -218,7 +217,7 @@ function calcProfit(avg,cur,fix,qty){
   return {won:profit, pct: (profit/buyAmt)*100};
 }
 
-// [핵심] 함수 정의를 최상단으로 이동 (오류 방지)
+// [핵심] 함수 정의를 최상단으로 이동
 function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0); 
   const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
@@ -641,7 +640,6 @@ function showChart(code, name){
   $('#chartTitle').textContent = `${name} (${code})`; $('#chartModal').style.display = 'flex';
 }
 
-// [신규] 백업 및 복구 기능
 function downloadBackup() {
     const data = { rows: rows, settings: settings, timestamp: new Date().toISOString() };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -705,11 +703,67 @@ document.addEventListener('DOMContentLoaded', () => {
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
   });
 
+  $('#copyTxtBtn').addEventListener('click', () => {
+    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
+    const hideSold = $('#hideSoldToggle').checked;
+    const hideWatch = $('#hideWatchToggle').checked; 
+
+    const visibleRows = rows.filter(r => {
+        if(currentFilter === 'short' && r.group === 'long') return false;
+        if(currentFilter === 'long' && r.group === 'short') return false;
+        if(hideSold && r.fix > 0) return false;
+        if(hideWatch && (!r.qty || Number(r.qty) <= 0)) return false; 
+        return true;
+    });
+    
+    const lines = visibleRows.map(r => {
+      const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+      const drStr = (r.dRate || 0) + '%';
+      
+      let dayProfit = 0;
+      if (r._isAgg && r.dayProfit !== undefined) {
+          dayProfit = r.dayProfit;
+      } else {
+          dayProfit = calculateDayProfitForRow(r);
+      }
+
+      let statusStr = '관망';
+      if(r.qty>0 && r.fix>0) statusStr='매도됨';
+      else if(r.qty>0 && !r.fix) statusStr='운영중';
+      
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+    });
+    
+    const textToCopy = headers.join('\t') + '\n' + lines.join('\n');
+    
+    // [신규] 복사 실패 시 Fallback 로직 추가 (파일 보안 정책 우회용)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(textToCopy)
+            .then(() => alert(`복사 완료 (${visibleRows.length}건)`))
+            .catch(() => fallbackCopy(textToCopy, visibleRows.length));
+    } else {
+        fallbackCopy(textToCopy, visibleRows.length);
+    }
+  });
+  
+  function fallbackCopy(text, count) {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+          document.execCommand('copy');
+          alert(`복사 완료 (${count}건)`);
+      } catch (e) {
+          alert('복사 실패: ' + e);
+      }
+      document.body.removeChild(ta);
+  }
+
   const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
   const CLOUD_ID = "stock-dashboard-rows";
   $('#cloudSaveBtn').addEventListener('click', async () => { 
       if(!confirm('클라우드에 저장?')) return; 
-      // [수정] 저장 전, 현재 입력창의 값을 settings에 확실히 반영
       saveSettings();
       try { 
           const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { 
@@ -733,7 +787,6 @@ document.addEventListener('DOMContentLoaded', () => {
           } 
           if(json.settings) { 
               settings = Object.assign(settings, json.settings); 
-              // [수정] 순서 중요: UI에 먼저 뿌리고 -> 그 값을 다시 저장 (덮어쓰기 방지)
               applySettingsToUI(); 
               saveSettings(); 
           } 
@@ -745,7 +798,6 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
-  // [백업/복구 이벤트 연결]
   $('#backupBtn').addEventListener('click', downloadBackup);
   $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', restoreBackup);
