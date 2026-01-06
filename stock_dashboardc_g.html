@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 주식 대시보드 v7.6.4 (최종수정)</title>
+<title>마녀의 대시보드 v7.6.5 (손익분리)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -180,7 +180,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 <div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
   <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> 
   | <span id="operatingLabel">운영중 손익</span>: <span id="operatingProfit" class="profit-neg">0</span> 
-  (수수료 0.26% 반영)
+  (미니닥스 우대계좌 수수료 0.1640527% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -205,7 +205,9 @@ const $$=(s)=>document.querySelectorAll(s);
 const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
-const FEE_BUY=0.00015, FEE_SELL=0.00015, TAX_SELL=0.00230; 
+// [요청사항 반영] 수수료율 변경
+const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
+
 function calcProfit(avg,cur,fix,qty){
   const base=(fix && fix!==0) ? fix : cur;
   if(!avg||!qty||!base) return {won:0,pct:0};
@@ -551,7 +553,7 @@ function updateTotalProfit(){
       });
   }
 
-  // [수정] 단타 모드('short')가 아닐 때만 아카이브 수익 더하기
+  // [수정] 단타 모드('short')가 아닐 때만 아카이브 수익 더하기 (장투 및 전체 모드)
   if (currentFilter !== 'short') {
       const archived = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
       totalProfit += archived;
