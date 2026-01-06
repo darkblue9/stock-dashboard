@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 대시보드 v7.6.7 (정렬/복사수정)</title>
+<title>마녀의 대시보드 v7.6.8 (반응속도UP)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -702,6 +702,11 @@ function restoreBackup(event) {
 document.addEventListener('DOMContentLoaded', () => {
   $$('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { $$('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentFilter = btn.dataset.filter; render(); }); });
   $('#hideSoldToggle').addEventListener('change', render);
+  
+  // [추가된 부분] 체크박스 이벤트 연결 (이게 없어서 바로 반응 안했던 것)
+  $('#hideWatchToggle').addEventListener('change', render);
+  $('#mergeToggle').addEventListener('change', render);
+
   $('#btnSortEmptyQty').addEventListener('click', () => {
     const active = [], sold = [], watch = [];
     rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
