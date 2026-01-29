@@ -6,9 +6,14 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
 from pykrx import stock
 
+# ---------------------------------------------------------
+# [버전 확인용] 이 로그가 안 보이면 옛날 코드 실행 중인 것임!
+print("🚀 [버전 3.0] 강력한 수급 수집기(KeyError 해결판) 시작!", flush=True)
+# ---------------------------------------------------------
+
 # 1. 오늘 날짜 확인
 today = datetime.now().strftime('%Y%m%d')
-print(f"[{today}] 주식 데이터(OHLC + 수급) 수집 시작...", flush=True)
+print(f"[{today}] 데이터 수집 시작...", flush=True)
 
 # 2. KRX 전체 종목 기본 데이터 가져오기 (FDR)
 try:
@@ -33,7 +38,7 @@ def get_supply(investor_name, col_name):
         # PyKRX에서 데이터 긁기
         df = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor=investor_name)
         
-        # 컬럼명이 버전마다 다를 수 있어서 확인 ('순매수수량' 또는 '순매수거래량')
+        # 컬럼명이 버전마다 다를 수 있어서 확인
         target_col = None
         for c in ['순매수수량', '순매수거래량', '순매수']:
             if c in df.columns:
@@ -43,7 +48,6 @@ def get_supply(investor_name, col_name):
         if target_col:
             return df[target_col] # Series 반환 (인덱스는 티커)
         else:
-            print(f"⚠️ {investor_name} 데이터에 순매수 컬럼이 안 보여요. 컬럼목록: {df.columns}", flush=True)
             return pd.Series(dtype='int64')
     except Exception as e:
         print(f"⚠️ {investor_name} 수집 실패 (장 안 열렸거나 에러): {e}", flush=True)
@@ -56,8 +60,6 @@ supply_data['개인순매수'] = get_supply("개인", "개인순매수")
 
 print("✅ 수급 데이터 준비 완료.", flush=True)
 
-# ---------------------------------------------------------
-
 # 4. 데이터 병합 및 전처리 🧹
 df_clean = df_krx.dropna(subset=['Name']).copy()
 df_clean = df_clean[df_clean['Name'].str.strip() != '']
@@ -68,16 +70,14 @@ df_clean = df_clean.dropna(subset=['Close'])
 # 병합을 위해 Code를 인덱스로
 df_clean.set_index('Code', inplace=True)
 
-# [핵심 수정] join 대신 직접 때려 박기 (KeyError 원천 차단)
-# 인덱스(종목코드)가 같은 곳에 데이터를 꽂아넣음
-print("🔧 데이터 합체 중...", flush=True)
+print("🔧 데이터 합체 중... (강제 주입 방식)", flush=True)
 
-# 하나씩 강제로 넣기 (없으면 NaN 들어감)
+# [핵심] 딕셔너리에 있는 시리즈를 직접 할당 (KeyError 원천 봉쇄)
 df_clean['외국인순매수'] = supply_data['외국인순매수']
 df_clean['기관순매수'] = supply_data['기관순매수']
 df_clean['개인순매수'] = supply_data['개인순매수']
 
-# 이제 NaN을 0으로 채우기 (컬럼이 이미 만들어졌으므로 에러 안 남)
+# NaN(데이터 없음)을 0으로 채우기
 df_clean['외국인순매수'] = df_clean['외국인순매수'].fillna(0).astype(int)
 df_clean['기관순매수'] = df_clean['기관순매수'].fillna(0).astype(int)
 df_clean['개인순매수'] = df_clean['개인순매수'].fillna(0).astype(int)
@@ -126,34 +126,28 @@ except Exception as e:
 # 6. 최종 데이터프레임 조립
 result_df = pd.DataFrame()
 
-# [기본 정보]
 result_df['날짜'] = [today] * len(df_clean)
 result_df['종목명'] = df_clean['Name']
 result_df['구분'] = df_clean['Market']
 result_df['업종명'] = df_clean.get('Sector', '')
 
-# [가격 정보]
 result_df['시가'] = df_clean['Open'].fillna(0).astype(int)
 result_df['고가'] = df_clean['High'].fillna(0).astype(int)
 result_df['저가'] = df_clean['Low'].fillna(0).astype(int)
 result_df['현재가'] = df_clean['Close'].fillna(0).astype(int)
 
-# [등락 정보]
 result_df['전일비'] = df_clean['Changes'].fillna(0).astype(int)
 result_df['등락률'] = df_clean['ChagesRatio'].fillna(0).astype(float)
 
-# [거래량 정보]
 result_df['거래량'] = df_clean['Volume'].fillna(0).astype(int)
 result_df['전일거래량'] = result_df['종목명'].map(prev_vol_map).fillna(0).astype(int)
 result_df['시가총액'] = (df_clean.get('Marcap', 0) // 100000000).fillna(0).astype(int)
 result_df['상장주식수'] = df_clean['Stocks'].fillna(0).astype(int)
 
-# [수급 정보]
 result_df['외국인순매수'] = df_clean['외국인순매수']
 result_df['기관순매수'] = df_clean['기관순매수']
 result_df['개인순매수'] = df_clean['개인순매수']
 
-# [신용잔고율]
 result_df['신용잔고율'] = 0.0
 
 print(f"📊 최종 데이터 준비 완료: {len(result_df)}건", flush=True)
