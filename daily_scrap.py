@@ -18,53 +18,43 @@ except Exception as e:
     print(f"❌ FDR 데이터 수집 중 에러: {e}", flush=True)
     exit(1)
 
-# 3. 투자자별 순매수 데이터 가져오기 (PyKRX) - [수정됨: 방탄 조끼 착용]
-# ---------------------------------------------------------
+# 3. 투자자별 순매수 데이터 가져오기 (PyKRX)
 print("🕵️ 투자자별(외국인/기관/개인) 순매수 동향 파악 중...", flush=True)
 
-# 빈 껍데기 함수 (에러 났을 때 쓸 용도)
-def create_empty_supply_df(col_name):
-    return pd.DataFrame(columns=[col_name])
+# 수급 데이터를 담을 딕셔너리 (실패해도 빈 깡통으로 시작)
+supply_data = {
+    '외국인순매수': pd.Series(dtype='int64'),
+    '기관순매수': pd.Series(dtype='int64'),
+    '개인순매수': pd.Series(dtype='int64')
+}
 
-try:
-    # 1) 외국인
+def get_supply(investor_name, col_name):
     try:
-        df_frgn = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="외국인")
-        if '순매수수량' in df_frgn.columns:
-            df_frgn = df_frgn[['순매수수량']].rename(columns={'순매수수량': '외국인순매수'})
+        # PyKRX에서 데이터 긁기
+        df = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor=investor_name)
+        
+        # 컬럼명이 버전마다 다를 수 있어서 확인 ('순매수수량' 또는 '순매수거래량')
+        target_col = None
+        for c in ['순매수수량', '순매수거래량', '순매수']:
+            if c in df.columns:
+                target_col = c
+                break
+        
+        if target_col:
+            return df[target_col] # Series 반환 (인덱스는 티커)
         else:
-            df_frgn = create_empty_supply_df('외국인순매수')
-    except:
-        df_frgn = create_empty_supply_df('외국인순매수')
+            print(f"⚠️ {investor_name} 데이터에 순매수 컬럼이 안 보여요. 컬럼목록: {df.columns}", flush=True)
+            return pd.Series(dtype='int64')
+    except Exception as e:
+        print(f"⚠️ {investor_name} 수집 실패 (장 안 열렸거나 에러): {e}", flush=True)
+        return pd.Series(dtype='int64')
 
-    # 2) 기관
-    try:
-        df_inst = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="기관합계")
-        if '순매수수량' in df_inst.columns:
-            df_inst = df_inst[['순매수수량']].rename(columns={'순매수수량': '기관순매수'})
-        else:
-            df_inst = create_empty_supply_df('기관순매수')
-    except:
-        df_inst = create_empty_supply_df('기관순매수')
+# 각각 수집 시도
+supply_data['외국인순매수'] = get_supply("외국인", "외국인순매수")
+supply_data['기관순매수'] = get_supply("기관합계", "기관순매수")
+supply_data['개인순매수'] = get_supply("개인", "개인순매수")
 
-    # 3) 개인
-    try:
-        df_ant = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="개인")
-        if '순매수수량' in df_ant.columns:
-            df_ant = df_ant[['순매수수량']].rename(columns={'순매수수량': '개인순매수'})
-        else:
-            df_ant = create_empty_supply_df('개인순매수')
-    except:
-        df_ant = create_empty_supply_df('개인순매수')
-
-    print("✅ 수급 데이터 처리 완료 (데이터 없으면 0 처리됨).", flush=True)
-
-except Exception as e:
-    print(f"⚠️ 수급 데이터 처리 중 알 수 없는 에러: {e}", flush=True)
-    # 최악의 경우 다 빈 거로 초기화
-    df_frgn = create_empty_supply_df('외국인순매수')
-    df_inst = create_empty_supply_df('기관순매수')
-    df_ant = create_empty_supply_df('개인순매수')
+print("✅ 수급 데이터 준비 완료.", flush=True)
 
 # ---------------------------------------------------------
 
@@ -75,19 +65,22 @@ df_clean = df_clean[df_clean['Name'].str.strip() != '']
 df_clean['Close'] = pd.to_numeric(df_clean['Close'], errors='coerce')
 df_clean = df_clean.dropna(subset=['Close'])
 
-# 병합 준비
+# 병합을 위해 Code를 인덱스로
 df_clean.set_index('Code', inplace=True)
 
-# 수급 데이터 붙이기
-df_clean = df_clean.join(df_frgn).join(df_inst).join(df_ant)
+# [핵심 수정] join 대신 직접 때려 박기 (KeyError 원천 차단)
+# 인덱스(종목코드)가 같은 곳에 데이터를 꽂아넣음
+print("🔧 데이터 합체 중...", flush=True)
 
-# [핵심 수정] Join 후에도 컬럼이 없으면 강제로 생성 (KeyError 방지)
-for col in ['외국인순매수', '기관순매수', '개인순매수']:
-    if col not in df_clean.columns:
-        df_clean[col] = 0
+# 하나씩 강제로 넣기 (없으면 NaN 들어감)
+df_clean['외국인순매수'] = supply_data['외국인순매수']
+df_clean['기관순매수'] = supply_data['기관순매수']
+df_clean['개인순매수'] = supply_data['개인순매수']
 
-# NaN 채우기 (이제 안전함)
-df_clean[['외국인순매수', '기관순매수', '개인순매수']] = df_clean[['외국인순매수', '기관순매수', '개인순매수']].fillna(0)
+# 이제 NaN을 0으로 채우기 (컬럼이 이미 만들어졌으므로 에러 안 남)
+df_clean['외국인순매수'] = df_clean['외국인순매수'].fillna(0).astype(int)
+df_clean['기관순매수'] = df_clean['기관순매수'].fillna(0).astype(int)
+df_clean['개인순매수'] = df_clean['개인순매수'].fillna(0).astype(int)
 
 # 인덱스 복구
 df_clean.reset_index(inplace=True)
@@ -156,9 +149,9 @@ result_df['시가총액'] = (df_clean.get('Marcap', 0) // 100000000).fillna(0).a
 result_df['상장주식수'] = df_clean['Stocks'].fillna(0).astype(int)
 
 # [수급 정보]
-result_df['외국인순매수'] = df_clean['외국인순매수'].astype(int)
-result_df['기관순매수'] = df_clean['기관순매수'].astype(int)
-result_df['개인순매수'] = df_clean['개인순매수'].astype(int)
+result_df['외국인순매수'] = df_clean['외국인순매수']
+result_df['기관순매수'] = df_clean['기관순매수']
+result_df['개인순매수'] = df_clean['개인순매수']
 
 # [신용잔고율]
 result_df['신용잔고율'] = 0.0
