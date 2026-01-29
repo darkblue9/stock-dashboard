@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.pool import NullPool
-from pykrx import stock  # [추가] 수급 데이터(외인/기관) 수집용
+from pykrx import stock
 
 # 1. 오늘 날짜 확인
 today = datetime.now().strftime('%Y%m%d')
@@ -12,74 +12,95 @@ print(f"[{today}] 주식 데이터(OHLC + 수급) 수집 시작...", flush=True)
 
 # 2. KRX 전체 종목 기본 데이터 가져오기 (FDR)
 try:
-    # FDR은 시가, 고가, 저가, 업종(Sector) 정보를 기본 제공함
     df_krx = fdr.StockListing('KRX')
     print(f"✅ KRX 기본 데이터 수집 완료. 총 {len(df_krx)}개 종목 스캔.", flush=True)
 except Exception as e:
     print(f"❌ FDR 데이터 수집 중 에러: {e}", flush=True)
     exit(1)
 
-# 3. 투자자별 순매수 데이터 가져오기 (PyKRX) - [핵심 추가]
+# 3. 투자자별 순매수 데이터 가져오기 (PyKRX) - [수정됨: 방탄 조끼 착용]
 # ---------------------------------------------------------
 print("🕵️ 투자자별(외국인/기관/개인) 순매수 동향 파악 중...", flush=True)
 
+# 빈 껍데기 함수 (에러 났을 때 쓸 용도)
+def create_empty_supply_df(col_name):
+    return pd.DataFrame(columns=[col_name])
+
 try:
-    # (주의) 장 마감 후(보통 15:40 이후)에 실행해야 정확한 데이터가 나옴
-    # 종목코드를 인덱스로 해서 수량 기준 순매수 데이터를 가져옴
-    
     # 1) 외국인
-    df_frgn = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="외국인")
-    df_frgn = df_frgn[['순매수수량']].rename(columns={'순매수수량': '외국인순매수'})
-    
+    try:
+        df_frgn = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="외국인")
+        if '순매수수량' in df_frgn.columns:
+            df_frgn = df_frgn[['순매수수량']].rename(columns={'순매수수량': '외국인순매수'})
+        else:
+            df_frgn = create_empty_supply_df('외국인순매수')
+    except:
+        df_frgn = create_empty_supply_df('외국인순매수')
+
     # 2) 기관
-    df_inst = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="기관합계")
-    df_inst = df_inst[['순매수수량']].rename(columns={'순매수수량': '기관순매수'})
-    
+    try:
+        df_inst = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="기관합계")
+        if '순매수수량' in df_inst.columns:
+            df_inst = df_inst[['순매수수량']].rename(columns={'순매수수량': '기관순매수'})
+        else:
+            df_inst = create_empty_supply_df('기관순매수')
+    except:
+        df_inst = create_empty_supply_df('기관순매수')
+
     # 3) 개인
-    df_ant = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="개인")
-    df_ant = df_ant[['순매수수량']].rename(columns={'순매수수량': '개인순매수'})
-    
-    print("✅ 수급 데이터 확보 완료.", flush=True)
-    
+    try:
+        df_ant = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor="개인")
+        if '순매수수량' in df_ant.columns:
+            df_ant = df_ant[['순매수수량']].rename(columns={'순매수수량': '개인순매수'})
+        else:
+            df_ant = create_empty_supply_df('개인순매수')
+    except:
+        df_ant = create_empty_supply_df('개인순매수')
+
+    print("✅ 수급 데이터 처리 완료 (데이터 없으면 0 처리됨).", flush=True)
+
 except Exception as e:
-    print(f"⚠️ 수급 데이터 수집 실패 (오늘은 장이 안 열렸거나 에러): {e}", flush=True)
-    # 에러 나면 빈 껍데기라도 만들어서 다음 단계 진행
-    df_frgn = pd.DataFrame()
-    df_inst = pd.DataFrame()
-    df_ant = pd.DataFrame()
+    print(f"⚠️ 수급 데이터 처리 중 알 수 없는 에러: {e}", flush=True)
+    # 최악의 경우 다 빈 거로 초기화
+    df_frgn = create_empty_supply_df('외국인순매수')
+    df_inst = create_empty_supply_df('기관순매수')
+    df_ant = create_empty_supply_df('개인순매수')
 
 # ---------------------------------------------------------
 
 # 4. 데이터 병합 및 전처리 🧹
-# FDR 데이터('Code' 기준)에 PyKRX 데이터(인덱스가 티커)를 합침
 df_clean = df_krx.dropna(subset=['Name']).copy()
 df_clean = df_clean[df_clean['Name'].str.strip() != '']
 
-# 'Close' 숫자 변환 및 0 제거
 df_clean['Close'] = pd.to_numeric(df_clean['Close'], errors='coerce')
 df_clean = df_clean.dropna(subset=['Close'])
 
-# [중요] 병합을 위해 'Code'를 인덱스로 설정 (임시)
+# 병합 준비
 df_clean.set_index('Code', inplace=True)
 
-# 수급 데이터 붙이기 (Left Join: 상장된 종목 기준으로)
+# 수급 데이터 붙이기
 df_clean = df_clean.join(df_frgn).join(df_inst).join(df_ant)
 
-# 수급 데이터 없는 경우(신규상장 등) 0으로 채우기
+# [핵심 수정] Join 후에도 컬럼이 없으면 강제로 생성 (KeyError 방지)
+for col in ['외국인순매수', '기관순매수', '개인순매수']:
+    if col not in df_clean.columns:
+        df_clean[col] = 0
+
+# NaN 채우기 (이제 안전함)
 df_clean[['외국인순매수', '기관순매수', '개인순매수']] = df_clean[['외국인순매수', '기관순매수', '개인순매수']].fillna(0)
 
-# 인덱스 다시 컬럼으로 복구
+# 인덱스 복구
 df_clean.reset_index(inplace=True)
-df_clean.rename(columns={'Code': 'Symbol'}, inplace=True) # 편의상 Symbol로
+df_clean.rename(columns={'Code': 'Symbol'}, inplace=True)
 
 print(f"🧹 데이터 병합 및 청소 완료: {len(df_clean)}개 종목", flush=True)
 
-# 5. DB 접속 및 '전일거래량' 가져오기 (기존 로직 유지)
+# 5. DB 접속 및 '전일거래량' 가져오기
 raw_url = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
 if not raw_url or not db_auth_token:
-    print("❌ DB 접속 정보가 없습니다. (환경변수 확인 필요)", flush=True)
+    print("❌ DB 접속 정보가 없습니다.", flush=True)
     exit(1)
 
 clean_host = raw_url.replace("https://", "").replace("libsql://", "").replace("wss://", "")
@@ -109,16 +130,16 @@ try:
 except Exception as e:
     print(f"⚠️ 전일거래량 조회 실패 (0 처리): {e}", flush=True)
 
-# 6. 최종 데이터프레임 조립 (DB 테이블 스키마와 1:1 매핑)
+# 6. 최종 데이터프레임 조립
 result_df = pd.DataFrame()
 
 # [기본 정보]
 result_df['날짜'] = [today] * len(df_clean)
 result_df['종목명'] = df_clean['Name']
 result_df['구분'] = df_clean['Market']
-result_df['업종명'] = df_clean.get('Sector', '') # FDR에 Sector 컬럼이 있음 (없으면 빈값)
+result_df['업종명'] = df_clean.get('Sector', '')
 
-# [가격 정보 - 캔들] (정수형 변환)
+# [가격 정보]
 result_df['시가'] = df_clean['Open'].fillna(0).astype(int)
 result_df['고가'] = df_clean['High'].fillna(0).astype(int)
 result_df['저가'] = df_clean['Low'].fillna(0).astype(int)
@@ -129,18 +150,17 @@ result_df['전일비'] = df_clean['Changes'].fillna(0).astype(int)
 result_df['등락률'] = df_clean['ChagesRatio'].fillna(0).astype(float)
 
 # [거래량 정보]
-result_df['거래량'] = df_clean['Volume'].fillna(0).astype(int) # BIGINT 대응
+result_df['거래량'] = df_clean['Volume'].fillna(0).astype(int)
 result_df['전일거래량'] = result_df['종목명'].map(prev_vol_map).fillna(0).astype(int)
-result_df['시가총액'] = (df_clean.get('Marcap', 0) // 100000000).fillna(0).astype(int) # 억 단위
+result_df['시가총액'] = (df_clean.get('Marcap', 0) // 100000000).fillna(0).astype(int)
 result_df['상장주식수'] = df_clean['Stocks'].fillna(0).astype(int)
 
-# [수급 정보 - 핵심!]
+# [수급 정보]
 result_df['외국인순매수'] = df_clean['외국인순매수'].astype(int)
 result_df['기관순매수'] = df_clean['기관순매수'].astype(int)
 result_df['개인순매수'] = df_clean['개인순매수'].astype(int)
 
-# [신용잔고율 - 미구현] 
-# ※ 주의: 신용잔고율은 대량 크롤링이 필요해서 일단 0.0으로 둠 (속도 저하 방지)
+# [신용잔고율]
 result_df['신용잔고율'] = 0.0
 
 print(f"📊 최종 데이터 준비 완료: {len(result_df)}건", flush=True)
@@ -148,11 +168,7 @@ print(f"📊 최종 데이터 준비 완료: {len(result_df)}건", flush=True)
 # 7. DB 저장
 try:
     with engine.begin() as conn:
-        # 오늘 날짜 중복 데이터 삭제 (재실행 시 중복 방지)
         conn.execute(text(f"DELETE FROM Npaystocks WHERE 날짜 = '{today}'"))
-        print(f"🧹 {today}일자 기존 데이터 삭제 완료.", flush=True)
-        
-        # 데이터 저장
         result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
         
     print(f"✅ [성공] Turso DB에 {len(result_df)}건 업데이트 완료!", flush=True)
