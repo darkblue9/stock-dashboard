@@ -37,24 +37,35 @@ supply_data = {
 
 def get_supply(investor_name, col_name):
     try:
-        # PyKRX에서 데이터 긁기
-        #df = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor=investor_name)
+        # PyKRX에서 데이터 긁기 (날짜 두 번 넣기 확인 완료)
         df = stock.get_market_net_purchases_of_equities_by_ticker(today, today, "ALL", investor=investor_name)
-        # 컬럼명이 버전마다 다를 수 있어서 확인
-        target_col = None
-        for c in ['순매수수량', '순매수거래량', '순매수']:
-            if c in df.columns:
-                target_col = c
-                break
         
+        # 디버깅용: 도대체 무슨 컬럼이 오는지 찍어보자 (나중에 주석 처리 가능)
+        # print(f"[{investor_name}] 컬럼 목록: {df.columns.tolist()}", flush=True)
+
+        target_col = None
+        
+        # 1순위: 돈(거래대금)이 제일 정확함
+        if '순매수거래대금' in df.columns:
+            target_col = '순매수거래대금'
+        # 2순위: 거래량이 차선책
+        elif '순매수거래량' in df.columns:
+            target_col = '순매수거래량'
+        # 3순위: 그냥 '순매수'라고 되어 있는 경우
+        elif '순매수' in df.columns:
+            target_col = '순매수'
+            
         if target_col:
+            # print(f"  👉 '{target_col}' 컬럼 선택됨", flush=True)
             return df[target_col] # Series 반환 (인덱스는 티커)
         else:
+            print(f"⚠️ {investor_name}: 맞는 컬럼을 못 찾음! (보유 컬럼: {df.columns})", flush=True)
             return pd.Series(dtype='int64')
+
     except Exception as e:
         print(f"⚠️ {investor_name} 수집 실패 (장 안 열렸거나 에러): {e}", flush=True)
         return pd.Series(dtype='int64')
-
+    
 # 각각 수집 시도
 supply_data['외국인순매수'] = get_supply("외국인", "외국인순매수")
 supply_data['기관순매수'] = get_supply("기관합계", "기관순매수")
