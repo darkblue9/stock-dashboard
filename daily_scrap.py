@@ -38,8 +38,8 @@ supply_data = {
 def get_supply(investor_name, col_name):
     try:
         # PyKRX에서 데이터 긁기
-        df = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor=investor_name)
-        
+        #df = stock.get_market_net_purchases_of_equities_by_ticker(today, "ALL", investor=investor_name)
+        df = stock.get_market_net_purchases_of_equities_by_ticker(today, today, "ALL", investor=investor_name)
         # 컬럼명이 버전마다 다를 수 있어서 확인
         target_col = None
         for c in ['순매수수량', '순매수거래량', '순매수']:
