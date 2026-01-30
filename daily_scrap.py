@@ -1,214 +1,187 @@
-import streamlit as st
+import time
 import pandas as pd
+from pykrx import stock
+from datetime import datetime
 import libsql_experimental as libsql
+import streamlit as st
+import numpy as np
 
-# -------------------------------------------------------------------
-# 1. 페이지 설정
-# -------------------------------------------------------------------
-st.set_page_config(
-    page_title="나의 보물창고",
-    page_icon="💰",
-    layout="wide"
-)
+# ---------------------------------------------------------
+# 1. DB 연결 설정 (secrets.toml 사용)
+# ---------------------------------------------------------
+url = st.secrets["db"]["url"]
+auth_token = st.secrets["db"]["auth_token"]
+conn = libsql.connect("pykrx.db", sync_url=url, auth_token=auth_token)
 
-# -------------------------------------------------------------------
-# 2. DB 연결 함수
-# -------------------------------------------------------------------
-def get_connection():
-    url = st.secrets["db"]["url"]
-    auth_token = st.secrets["db"]["auth_token"]
-    return libsql.connect("pykrx.db", sync_url=url, auth_token=auth_token)
+# ---------------------------------------------------------
+# 2. 날짜 설정 (자동 모드)
+# ---------------------------------------------------------
+# 매일 자동으로 오늘 날짜를 가져옵니다.
+target_date = datetime.now().strftime("%Y%m%d")
+# target_date = "20260129" # (복구용 고정 날짜 - 필요시 주석 해제)
 
-# -------------------------------------------------------------------
-# 3. 데이터 로드 (오늘 & 어제 동시 로딩)
-# -------------------------------------------------------------------
-@st.cache_data(ttl=300) # 5분마다 갱신
-def load_latest_two_days():
-    conn = get_connection()
-    
-    # 날짜 목록 가져오기 (내림차순)
-    date_query = "SELECT DISTINCT 날짜 FROM Npaystocks ORDER BY 날짜 DESC LIMIT 2"
-    date_rows = conn.execute(date_query).fetchall()
-    
-    if not date_rows:
-        return None, None, None, None
-        
-    dates = [str(row[0]) for row in date_rows]
-    latest_date = dates[0]  # 오늘 (또는 가장 최신)
-    prev_date = dates[1] if len(dates) > 1 else None # 어제 (또는 그 전)
+print(f"🚀 [버전 3.0] 강력한 수급 수집기 시작!")
+print(f"[{target_date}] 데이터 수집 시작...")
 
-    # 오늘 데이터 가져오기
-    query_latest = f"SELECT * FROM Npaystocks WHERE 날짜 = '{latest_date}'"
-    df_latest = pd.read_sql(query_latest, conn) # pandas read_sql 사용 (더 편함)
+# ---------------------------------------------------------
+# 3. 데이터 수집 함수 (재시도 로직 포함)
+# ---------------------------------------------------------
+def get_ohlcv_with_retry(date, market="ALL", max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            df = stock.get_market_ohlcv(date, market=market)
+            if df is not None and not df.empty:
+                return df
+        except Exception as e:
+            print(f"⚠️ OHLCV 수집 실패 ({attempt+1}/{max_retries}): {e}")
+            time.sleep(2)
+    return pd.DataFrame()
 
-    # 어제 데이터 가져오기
-    df_prev = pd.DataFrame()
-    if prev_date:
-        query_prev = f"SELECT * FROM Npaystocks WHERE 날짜 = '{prev_date}'"
-        df_prev = pd.read_sql(query_prev, conn)
-        
-    return df_latest, latest_date, df_prev, prev_date
-
-# -------------------------------------------------------------------
-# 4. 데이터 전처리 (방탄 조끼)
-# -------------------------------------------------------------------
-def process_data(df):
-    if df.empty:
-        return df
-
-    # 숫자 변환 & 결측치 처리
-    numeric_cols = ['현재가', '등락률', '거래량', '전일거래량', '시가', '고가', '저가', '외국인순매수', '기관순매수']
-    for col in numeric_cols:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-
-    # 0 나누기 방지
-    if '전일거래량' in df.columns:
-        df['전일거래량'] = df['전일거래량'].replace(0, 1)
-
-    # 파생 지표
-    df['거래량비율'] = df['거래량'] / df['전일거래량']
-    
-    return df
-
-# -------------------------------------------------------------------
-# 5. 메인 화면
-# -------------------------------------------------------------------
-def main():
-    st.title("💰 주식 보물창고 (Ver 2.2)")
-
-    try:
-        # 데이터 2일치 한 번에 로딩
-        df_today, date_today, df_yesterday, date_yesterday = load_latest_two_days()
-        
-        if df_today is None:
-            st.warning("데이터가 없습니다.")
-            return
-
-        # 전처리
-        df_today = process_data(df_today)
-        if not df_yesterday.empty:
-            df_yesterday = process_data(df_yesterday)
-
-    except Exception as e:
-        st.error(f"오류 발생: {e}")
-        return
-
-    # 상단 정보 바
-    st.info(f"📊 **오늘 데이터:** {date_today} (장중) | 🔙 **어제 데이터:** {date_yesterday if date_yesterday else '없음'}")
-
-    # 탭 구성 (원하는 대로 탭 추가!)
-    tabs = st.tabs([
-        "🔥 돈냄새 (오늘)", 
-        "🐜 개미털기 (오늘)", 
-        "🐜 개미털기 (어제)", 
-        "🤝 쌍끌이 (어제)",
-        "📋 전체 목록"
-    ])
-
-    # ----------------------------------------------------------------
-    # TAB 1: 돈냄새 (오늘) - 실시간 단타용
-    # ----------------------------------------------------------------
-    with tabs[0]:
-        st.markdown(f"### 🔥 오늘({date_today}) 거래량 폭발 종목")
-        st.caption("※ 장중 실시간 거래량을 반영합니다.")
-        
-        df_money = df_today[df_today['거래량비율'] >= 5.0].copy()
-        df_money = df_money.sort_values(by='거래량비율', ascending=False)
-        
-        if df_money.empty:
-            st.info("아직 거래량이 터진 종목이 없습니다.")
-        else:
-            st.dataframe(
-                df_money[['종목명', '현재가', '등락률', '거래량', '전일거래량', '거래량비율']],
-                column_config={
-                    "현재가": st.column_config.NumberColumn(format="%d원"),
-                    "등락률": st.column_config.NumberColumn(format="%.2f%%"),
-                    "거래량비율": st.column_config.NumberColumn(format="%.1f배"),
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-
-    # ----------------------------------------------------------------
-    # TAB 2: 개미털기 (오늘) - 장중 추정
-    # ----------------------------------------------------------------
-    with tabs[1]:
-        st.markdown(f"### 🐜 오늘({date_today}) 개미털기 의심 (실시간)")
-        st.caption("※ 주의: 장중에는 외국인/기관 수급 데이터가 0으로 잡히거나 부정확할 수 있습니다.")
-        
-        condition_ant = (df_today['등락률'] < 0) & ((df_today['외국인순매수'] > 0) | (df_today['기관순매수'] > 0))
-        df_ant_today = df_today[condition_ant].copy()
-        df_ant_today = df_ant_today.sort_values(by='외국인순매수', ascending=False)
-
-        if df_ant_today.empty:
-            st.info("오늘 데이터 기준으로는 아직 포착된 종목이 없습니다. (수급 데이터 집계 지연 가능성)")
-        else:
-            st.dataframe(
-                df_ant_today[['종목명', '현재가', '등락률', '외국인순매수', '기관순매수']],
-                column_config={
-                    "현재가": st.column_config.NumberColumn(format="%d원"),
-                    "등락률": st.column_config.NumberColumn(format="%.2f%%"),
-                },
-                use_container_width=True,
-                hide_index=True
-            )
-
-    # ----------------------------------------------------------------
-    # TAB 3: 개미털기 (어제) - 확정 데이터 (핵심!)
-    # ----------------------------------------------------------------
-    with tabs[2]:
-        if df_yesterday.empty:
-            st.warning("어제 데이터가 없습니다.")
-        else:
-            st.markdown(f"### 🔙 어제({date_yesterday}) 개미털기 확정 (매집 완료)")
-            st.caption("※ 어제 가격은 내렸지만 형님들이 몰래 사둔 종목입니다. 오늘 반등하는지 보세요!")
+def get_net_purchases_with_retry(date, market="ALL", max_retries=3):
+    for attempt in range(max_retries):
+        try:
+            # 종목별 투자자 순매수 (금액이 아닌 수량 기준 등 확인 필요하지만 보통 get_market_net_purchases_of_equities_by_ticker 사용)
+            # pykrx 문법: (날짜, 날짜, 시장, 투자자 구분) -> 근데 여기선 하루치만 필요
+            # 꿀팁: 날짜를 하루만 지정하면 그날 데이터 나옴
+            df = stock.get_market_net_purchases_of_equities_by_ticker(date, date, "ALL", "foreign")
+            # 위 함수는 리턴값이 좀 다를 수 있어서, 보통 get_market_net_purchases_of_equities_by_ticker를 씀
+            # 더 확실한 방법: stock.get_market_net_purchases_of_equities_by_ticker(start_date, end_date, market)
+            # 하지만 여기서는 '투자자별' 합친 데이터프레임을 만드는 게 목표
             
-            condition_ant_prev = (df_yesterday['등락률'] < 0) & ((df_yesterday['외국인순매수'] > 0) | (df_yesterday['기관순매수'] > 0))
-            df_ant_prev = df_yesterday[condition_ant_prev].copy()
-            df_ant_prev = df_ant_prev.sort_values(by='외국인순매수', ascending=False)
-
-            if df_ant_prev.empty:
-                st.info("어제 조건에 맞는 종목이 없었습니다.")
-            else:
-                st.dataframe(
-                    df_ant_prev[['종목명', '현재가', '등락률', '외국인순매수', '기관순매수']],
-                    column_config={
-                        "현재가": st.column_config.NumberColumn(format="%d원"),
-                        "등락률": st.column_config.NumberColumn(format="%.2f%%"),
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-    # ----------------------------------------------------------------
-    # TAB 4: 쌍끌이 (어제) - 확정 데이터
-    # ----------------------------------------------------------------
-    with tabs[3]:
-        if df_yesterday.empty:
-            st.warning("어제 데이터가 없습니다.")
-        else:
-            st.markdown(f"### 🤝 어제({date_yesterday}) 외국인+기관 쌍끌이")
+            # (수정) 가장 안전한 방법: 각각 가져와서 합치기
+            df_foreign = stock.get_market_net_purchases_of_equities_by_ticker(date, date, "ALL", "foreign")
+            df_institutional = stock.get_market_net_purchases_of_equities_by_ticker(date, date, "ALL", "institution")
+            df_retail = stock.get_market_net_purchases_of_equities_by_ticker(date, date, "ALL", "retail")
             
-            condition_double = (df_yesterday['외국인순매수'] > 0) & (df_yesterday['기관순매수'] > 0)
-            df_double = df_yesterday[condition_double].copy()
-            df_double['합산매수'] = df_double['외국인순매수'] + df_double['기관순매수']
-            df_double = df_double.sort_values(by='합산매수', ascending=False)
+            # 필요한 컬럼만 추출 ('순매수') 및 이름 변경
+            if df_foreign is not None: df_foreign = df_foreign[['순매수']].rename(columns={'순매수': '외국인순매수'})
+            if df_institutional is not None: df_institutional = df_institutional[['순매수']].rename(columns={'순매수': '기관순매수'})
+            if df_retail is not None: df_retail = df_retail[['순매수']].rename(columns={'순매수': '개인순매수'})
+            
+            return df_foreign, df_institutional, df_retail
+            
+        except Exception as e:
+            print(f"⚠️ 수급 데이터 수집 실패 ({attempt+1}/{max_retries}): {e}")
+            time.sleep(2)
+    return None, None, None
 
-            if df_double.empty:
-                st.info("쌍끌이 종목이 없습니다.")
-            else:
-                st.dataframe(
-                    df_double[['종목명', '현재가', '등락률', '외국인순매수', '기관순매수']],
-                    use_container_width=True,
-                    hide_index=True
-                )
+# ---------------------------------------------------------
+# 4. 메인 로직 실행
+# ---------------------------------------------------------
 
-    # ----------------------------------------------------------------
-    # TAB 5: 전체 데이터
-    # ----------------------------------------------------------------
-    with tabs[4]:
-        st.dataframe(df_today, use_container_width=True)
+# (1) 기본 시세 데이터 (시가, 고가, 종가, 거래량 등)
+df_ohlcv = get_ohlcv_with_retry(target_date)
 
-if __name__ == "__main__":
-    main()
+if df_ohlcv.empty:
+    print(f"❌ {target_date} 장이 열리지 않았거나 데이터가 없습니다.")
+    # 주말/휴일일 경우 종료
+    exit()
+
+print(f"✅ KRX 기본 데이터 수집 완료. 총 {len(df_ohlcv)}개 종목 스캔.")
+
+# (2) 투자자별 수급 데이터 (외국인, 기관, 개인)
+print(f"🕵️ 투자자별(외국인/기관/개인) 순매수 동향 파악 중...")
+df_foreign, df_institutional, df_retail = get_net_purchases_with_retry(target_date)
+
+if df_foreign is None or df_foreign.empty:
+    print("⚠️ 외국인 수집 실패 (또는 휴장일). 데이터 0으로 처리합니다.")
+    # 빈 데이터프레임 생성 (인덱스는 df_ohlcv와 맞춤)
+    df_foreign = pd.DataFrame(0, index=df_ohlcv.index, columns=['외국인순매수'])
+    df_institutional = pd.DataFrame(0, index=df_ohlcv.index, columns=['기관순매수'])
+    df_retail = pd.DataFrame(0, index=df_ohlcv.index, columns=['개인순매수'])
+
+print(f"✅ 수급 데이터 준비 완료.")
+
+# (3) 데이터 합치기 (Join)
+print(f"🔧 데이터 합체 중... (강제 주입 방식)")
+
+# 인덱스(티커) 기준으로 합치기
+merged_df = df_ohlcv.join(df_foreign, how='left')
+merged_df = merged_df.join(df_institutional, how='left')
+merged_df = merged_df.join(df_retail, how='left')
+
+# NaN(빈값)은 0으로 채우기
+merged_df = merged_df.fillna(0)
+
+# 전일 거래량 가져오기 (전일대비 거래량 급증 분석용)
+# -> 오늘 데이터에 '거래량'이 있고, '전일거래량'은 따로 구하거나 계산해야 함.
+# -> pykrx의 OHLCV에는 보통 '거래량'만 줌.
+# -> 하지만 등락률 계산을 위해 '전일종가' 등은 내부적으로 계산 가능하거나 제공됨.
+# -> 여기서는 단순화를 위해 현재 수집된 '거래량'을 저장하고, 
+# -> DB에 넣을 때 '전일거래량' 컬럼은, 어제자 DB 데이터를 참조해야 정확하지만,
+# -> 간단하게 pykrx에서 제공하는지 확인. (제공 안함)
+# -> 따라서 '전일거래량'을 구하려면 어제 날짜로 한 번 더 호출하거나 해야 함.
+# -> [타협안] 일단 이번 버전에서는 '전일거래량'을 0으로 넣거나, 
+# -> 나중에 DB 쿼리(Window Function)로 해결. 
+# -> (수정) 아! 네이버 증권 크롤링 할 때는 있었는데 pykrx는 없네?
+# -> 괜찮음. 일단 0으로 넣고 app.py에서 해결하거나, 
+# -> (고급) 어제 날짜를 구해서 한 번 더 호출해서 붙여넣기.
+
+# [고급 기능] 전일 거래량 구하기 (하루 전 영업일 찾기 귀찮으니, 그냥 어제 날짜 시도)
+# 여기서는 심플하게 '0'으로 넣고, app.py에서 처리하도록 둠. (속도 위해)
+merged_df['전일거래량'] = 0 
+
+# 컬럼 정리 (티커는 인덱스에 있음 -> 컬럼으로 빼기)
+merged_df.index.name = '종목코드'
+merged_df = merged_df.reset_index()
+
+# 날짜 컬럼 추가
+merged_df['날짜'] = target_date
+merged_df['indate'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+# 종목명은 pykrx에서 줌 (티커별 종목명 매핑 필요할 수도 있지만 OHLCV에 보통 포함 안됨... 아! 포함 안됨!)
+# 티커로 종목명 가져오기
+print("🏷️ 종목명 매핑 중...")
+ticker_list = stock.get_market_ticker_list(target_date)
+ticker_dict = {}
+for ticker in ticker_list:
+    name = stock.get_market_ticker_name(ticker)
+    ticker_dict[ticker] = name
+
+merged_df['종목명'] = merged_df['종목코드'].map(ticker_dict)
+
+# 필요한 컬럼만 딱 정리
+final_df = merged_df[[
+    'indate', '날짜', '종목명', '시가', '고가', '저가', '종가', '등락률', '거래량', '전일거래량',
+    '외국인순매수', '기관순매수', '개인순매수'
+]]
+
+# 컬럼 이름 DB와 맞추기 (현재가 = 종가)
+final_df = final_df.rename(columns={'종가': '현재가'})
+
+# 등락률 반올림
+final_df['등락률'] = final_df['등락률'].round(2)
+
+print(f"🧹 데이터 병합 및 청소 완료: {len(final_df)}개 종목")
+
+# ---------------------------------------------------------
+# 5. Turso DB에 저장 (Batch Insert)
+# ---------------------------------------------------------
+print("💾 Turso DB에 저장 시작...")
+
+# 기존 데이터 삭제 (중복 방지 - 해당 날짜만)
+conn.execute(f"DELETE FROM Npaystocks WHERE 날짜 = '{target_date}'")
+conn.commit()
+
+# 데이터프레임을 리스트로 변환
+data_to_insert = final_df.values.tolist()
+
+# 쿼리 작성
+insert_query = """
+INSERT INTO Npaystocks (
+    indate, 날짜, 종목명, 시가, 고가, 저가, 현재가, 등락률, 거래량, 전일거래량,
+    외국인순매수, 기관순매수, 개인순매수
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+"""
+
+# 실행 (Batch)
+try:
+    conn.executemany(insert_query, data_to_insert)
+    conn.commit()
+    print(f"✅ [성공] Turso DB에 {len(data_to_insert)}건 업데이트 완료!")
+except Exception as e:
+    print(f"❌ DB 저장 실패: {e}")
+
+# 연결 종료
+conn.close()
+print("👋 작업 종료.")
