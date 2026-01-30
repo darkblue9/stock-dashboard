@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '20 5 * * 1-5' # 평일 오후 2시 20분 (UTC 05:20)
     - cron: '40 6 * * 1-5'  # 평일 오후 3시 40분 (UTC 06:40)
+    - cron: '30 11 * * 1-5'  # 평일 오후 3시 40분 (UTC 06:40)
   workflow_dispatch:       # 수동 실행 버튼
 
 jobs:
