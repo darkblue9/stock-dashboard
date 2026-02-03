@@ -67,9 +67,9 @@ def get_supply(investor_name, col_name):
         return pd.Series(dtype='int64')
     
 # 각각 수집 시도
-supply_data['외국인순매수'] = get_supply("외국인", "외국인순매수")
-supply_data['기관순매수'] = get_supply("기관합계", "기관순매수")
-supply_data['개인순매수'] = get_supply("개인", "개인순매수")
+supply_data['외국인순매수'] = get_supply("foreign", "외국인순매수")   # "외국인" -> "foreign"
+supply_data['기관순매수'] = get_supply("financial", "기관순매수") # "기관합계" -> "financial" (또는 "pension" 등 합쳐야 하는데 일단 financial로)
+supply_data['개인순매수'] = get_supply("individual", "개인순매수") # "개인" -> "individual"
 
 print("✅ 수급 데이터 준비 완료.", flush=True)
 
