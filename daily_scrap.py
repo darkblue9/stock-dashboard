@@ -37,39 +37,44 @@ supply_data = {
 
 def get_supply(investor_name, col_name):
     try:
-        # PyKRX에서 데이터 긁기 (날짜 두 번 넣기 확인 완료)
+        # 1. 날짜 두 개(시작, 종료) 넣는 건 이제 확실함!
         df = stock.get_market_net_purchases_of_equities_by_ticker(today, today, "ALL", investor=investor_name)
         
-        # 디버깅용: 도대체 무슨 컬럼이 오는지 찍어보자 (나중에 주석 처리 가능)
-        # print(f"[{investor_name}] 컬럼 목록: {df.columns.tolist()}", flush=True)
+        # 🚨 [디버깅 핵심] 도대체 무슨 컬럼이 오는지 로그로 찍어보자!
+        print(f"👉 [{investor_name}] 수신된 컬럼명: {df.columns.tolist()}", flush=True)
 
+        # 2. 컬럼명 찾기 (PyKRX 버전에 따라 이름이 다름)
         target_col = None
         
-        # 1순위: 돈(거래대금)이 제일 정확함
+        # 우선순위 1: 거래대금 (돈이 제일 정확함)
         if '순매수거래대금' in df.columns:
             target_col = '순매수거래대금'
-        # 2순위: 거래량이 차선책
+        # 우선순위 2: 그냥 '매수대금'일 수도 있음
+        elif '매수대금' in df.columns:
+            target_col = '매수대금'
+        # 우선순위 3: 거래량
         elif '순매수거래량' in df.columns:
             target_col = '순매수거래량'
-        # 3순위: 그냥 '순매수'라고 되어 있는 경우
-        elif '순매수' in df.columns:
-            target_col = '순매수'
+        # 우선순위 4: 0번째 말고 1번째 컬럼을 강제로 가져오기 (종목명 다음 컬럼)
+        elif len(df.columns) > 1:
+             # 만약 컬럼명을 못 찾겠으면, 두 번째 컬럼(인덱스1)이 보통 숫자임
+             print(f"⚠️ [{investor_name}] 컬럼명 못 찾음. 강제로 두 번째 컬럼({df.columns[1]}) 사용", flush=True)
+             return df.iloc[:, 1] # 0번은 종목명이니까 1번 리턴
             
         if target_col:
-            # print(f"  👉 '{target_col}' 컬럼 선택됨", flush=True)
-            return df[target_col] # Series 반환 (인덱스는 티커)
+            return df[target_col]
         else:
-            print(f"⚠️ {investor_name}: 맞는 컬럼을 못 찾음! (보유 컬럼: {df.columns})", flush=True)
+            print(f"❌ [{investor_name}] 숫자 컬럼을 도저히 못 찾겠음!", flush=True)
             return pd.Series(dtype='int64')
 
     except Exception as e:
-        print(f"⚠️ {investor_name} 수집 실패 (장 안 열렸거나 에러): {e}", flush=True)
+        print(f"⚠️ {investor_name} 수집 중 에러 발생: {e}", flush=True)
         return pd.Series(dtype='int64')
     
 # 각각 수집 시도
-supply_data['외국인순매수'] = get_supply("foreign", "외국인순매수")   # "외국인" -> "foreign"
-supply_data['기관순매수'] = get_supply("financial", "기관순매수") # "기관합계" -> "financial" (또는 "pension" 등 합쳐야 하는데 일단 financial로)
-supply_data['개인순매수'] = get_supply("individual", "개인순매수") # "개인" -> "individual"
+supply_data['외국인순매수'] = get_supply("foreign", "외국인순매수")
+supply_data['기관순매수'] = get_supply("financial", "기관순매수") # 기관합계 대신 financial 권장
+supply_data['개인순매수'] = get_supply("individual", "개인순매수")
 
 print("✅ 수급 데이터 준비 완료.", flush=True)
 
