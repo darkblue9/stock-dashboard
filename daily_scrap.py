@@ -35,41 +35,61 @@ supply_data = {
     '개인순매수': pd.Series(dtype='int64')
 }
 
+# [수정] get_supply 함수 전체 교체
 def get_supply(investor_name, col_name):
+    # ★ 테스트용: 날짜를 아까 성공했던 '20260129'로 잠시 고정!
+    # (성공 확인 후 다시 today로 바꿀 예정)
+    test_date = "20260129"  
+    
     try:
-        # 1. 날짜 두 개(시작, 종료) 넣는 건 이제 확실함!
-        df = stock.get_market_net_purchases_of_equities_by_ticker(today, today, "ALL", investor=investor_name)
-        
-        # 🚨 [디버깅 핵심] 도대체 무슨 컬럼이 오는지 로그로 찍어보자!
-        print(f"👉 [{investor_name}] 수신된 컬럼명: {df.columns.tolist()}", flush=True)
+        # 1. 아까 성공한 test_krx.py와 똑같은 파라미터 사용 (ALL)
+        # 영어 파라미터로 변환 (안전을 위해)
+        inv_code = investor_name
+        if investor_name == "외국인": inv_code = "foreign"
+        elif investor_name == "기관합계": inv_code = "financial"
+        elif investor_name == "개인": inv_code = "individual"
 
-        # 2. 컬럼명 찾기 (PyKRX 버전에 따라 이름이 다름)
-        target_col = None
+        print(f"👉 [{investor_name}] 데이터 요청 중... (날짜: {test_date})", end=" ", flush=True)
         
-        # 우선순위 1: 거래대금 (돈이 제일 정확함)
-        if '순매수거래대금' in df.columns:
-            target_col = '순매수거래대금'
-        # 우선순위 2: 그냥 '매수대금'일 수도 있음
-        elif '매수대금' in df.columns:
-            target_col = '매수대금'
-        # 우선순위 3: 거래량
-        elif '순매수거래량' in df.columns:
-            target_col = '순매수거래량'
-        # 우선순위 4: 0번째 말고 1번째 컬럼을 강제로 가져오기 (종목명 다음 컬럼)
-        elif len(df.columns) > 1:
-             # 만약 컬럼명을 못 찾겠으면, 두 번째 컬럼(인덱스1)이 보통 숫자임
-             print(f"⚠️ [{investor_name}] 컬럼명 못 찾음. 강제로 두 번째 컬럼({df.columns[1]}) 사용", flush=True)
-             return df.iloc[:, 1] # 0번은 종목명이니까 1번 리턴
-            
-        if target_col:
-            return df[target_col]
-        else:
-            print(f"❌ [{investor_name}] 숫자 컬럼을 도저히 못 찾겠음!", flush=True)
+        # 2. PyKRX 호출 (날짜 두 번 필수!)
+        df = stock.get_market_net_purchases_of_equities_by_ticker(test_date, test_date, "ALL", investor=inv_code)
+        
+        if df.empty:
+            print("❌ 실패 (데이터 없음)", flush=True)
             return pd.Series(dtype='int64')
 
+        # 3. [핵심 수정] 컬럼 위치로 찾기 (이름이 매번 바뀌어서 이게 제일 확실함)
+        # test_krx 결과: 0번째=종목명(두산...), 1번째=순매수금액(숫자)
+        # 그러니까 우리는 무조건 '1번째' 칸을 가져와야 함!
+        
+        target_series = None
+        
+        # 만약 컬럼 이름에 '거래대금'이나 '순매수'가 명확히 있으면 그걸 씀
+        found_col = None
+        for col in df.columns:
+            if "거래대금" in col or "순매수" in col:
+                # 근데 '종목명' 컬럼은 제외해야 함
+                if "종목명" not in col:
+                    found_col = col
+                    break
+        
+        if found_col:
+            print(f"✅ 성공! (컬럼명: {found_col})", flush=True)
+            target_series = df[found_col]
+        elif len(df.columns) >= 2:
+            # 이름을 못 찾겠으면, 두 번째 칸(인덱스 1)을 강제로 가져옴
+            print(f"✅ 성공! (두 번째 컬럼 강제 선택: {df.columns[1]})", flush=True)
+            target_series = df.iloc[:, 1]
+        else:
+            print("❌ 실패 (가져올 컬럼이 안 보임)", flush=True)
+            return pd.Series(dtype='int64')
+
+        return target_series
+
     except Exception as e:
-        print(f"⚠️ {investor_name} 수집 중 에러 발생: {e}", flush=True)
+        print(f"⚠️ 에러 발생: {e}", flush=True)
         return pd.Series(dtype='int64')
+    
     
 # 각각 수집 시도
 supply_data['외국인순매수'] = get_supply("foreign", "외국인순매수")
