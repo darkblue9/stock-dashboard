@@ -126,7 +126,9 @@ df_clean.rename(columns={'Code': 'Symbol'}, inplace=True)
 
 print(f"🧹 데이터 병합 및 청소 완료: {len(df_clean)}개 종목", flush=True)
 
-# 5. DB 접속 및 '전일거래량' 가져오기
+# -----------------------------------------------------------------------------
+# 5. DB 접속 정보 준비 (연결은 아직 안 함)
+# -----------------------------------------------------------------------------
 raw_url = os.environ.get("TURSO_DB_URL", "").strip()
 db_auth_token = os.environ.get("TURSO_AUTH_TOKEN", "").strip()
 
@@ -139,14 +141,22 @@ if "/" in clean_host: clean_host = clean_host.split("/")[0]
 if "?" in clean_host: clean_host = clean_host.split("?")[0]
 
 connection_url = f"sqlite+libsql://{clean_host}/?secure=true"
-engine = create_engine(connection_url, connect_args={"auth_token": db_auth_token}, poolclass=NullPool)
 
+# -----------------------------------------------------------------------------
+# [수정 1] 전일 거래량 조회용 '1회용' 연결
+# -----------------------------------------------------------------------------
+print("🔌 [1차 연결] 전일 데이터 조회 중...", flush=True)
 prev_vol_map = {}
 
 try:
-    with engine.connect() as conn:
+    # 조회용 엔진 생성
+    engine_read = create_engine(connection_url, connect_args={"auth_token": db_auth_token}, poolclass=NullPool)
+    
+    with engine_read.connect() as conn:
+        # 혹시 모를 쓰레기 데이터 정리
         conn.execute(text("DELETE FROM Npaystocks WHERE 종목명 IS NULL OR 종목명 = ''"))
         
+        # 전일 날짜 찾기
         query_date = text(f"SELECT MAX(날짜) FROM Npaystocks WHERE 날짜 < '{today}'")
         last_date = conn.execute(query_date).scalar()
         
@@ -157,11 +167,17 @@ try:
             prev_vol_map = {row[0]: row[1] for row in rows}
         else:
             print("ℹ️ 과거 데이터 없음 (첫 실행)", flush=True)
+            
+    # ★ 다 썼으면 과감하게 폐기! (세션 만료 방지)
+    engine_read.dispose()
+    print("✅ 전일 데이터 조회 완료 및 연결 해제.", flush=True)
 
 except Exception as e:
     print(f"⚠️ 전일거래량 조회 실패 (0 처리): {e}", flush=True)
 
-# 6. 최종 데이터프레임 조립
+# -----------------------------------------------------------------------------
+# 6. 최종 데이터프레임 조립 (DB 연결 없이 메모리에서 작업)
+# -----------------------------------------------------------------------------
 result_df = pd.DataFrame()
 
 result_df['날짜'] = [today] * len(df_clean)
@@ -190,14 +206,24 @@ result_df['신용잔고율'] = 0.0
 
 print(f"📊 최종 데이터 준비 완료: {len(result_df)}건", flush=True)
 
-# 7. DB 저장
+# -----------------------------------------------------------------------------
+# [수정 2] 저장을 위한 '새로운' 연결 (싱싱한 세션)
+# -----------------------------------------------------------------------------
+print("🔌 [2차 연결] DB 저장 시작...", flush=True)
+
 try:
-    with engine.begin() as conn:
+    # 저장용 엔진 새로 생성!
+    engine_write = create_engine(connection_url, connect_args={"auth_token": db_auth_token}, poolclass=NullPool)
+    
+    with engine_write.begin() as conn:
+        # 오늘 날짜 중복 데이터 삭제 후 입력
         conn.execute(text(f"DELETE FROM Npaystocks WHERE 날짜 = '{today}'"))
         result_df.to_sql('Npaystocks', conn, if_exists='append', index=False)
         
     print(f"✅ [성공] Turso DB에 {len(result_df)}건 업데이트 완료!", flush=True)
-    engine.dispose()
+    
+    # 마무리
+    engine_write.dispose()
     
 except Exception as e:
     print("❌ DB 저장 실패.", flush=True)
