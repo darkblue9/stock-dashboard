@@ -13,7 +13,7 @@ print("🚀 [GitHub Action] 수급 수집기 시작", flush=True)
 # 1. 날짜 설정 (자동)
 today = datetime.now().strftime('%Y%m%d')
 # ★ 테스트용: 오늘 데이터가 없을 수 있으니, 필요하면 아래 주석 풀어서 과거 날짜로 테스트
-# today = "20260129" 
+today = "20260202" 
 print(f"📅 수집 타겟 날짜: {today}", flush=True)
 
 # 2. KRX 전체 종목 스캔
