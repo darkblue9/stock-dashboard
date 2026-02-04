@@ -1,6 +1,7 @@
 finance-datareader
 pandas
 sqlalchemy
-libsql-client
 sqlalchemy-libsql
 pykrx
+sqlalchemy
+libsql-experimental
