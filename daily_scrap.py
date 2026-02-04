@@ -16,7 +16,7 @@ print("🚀 [버전 6.2] 수급 수집기 (Action용: Rust Engine) 시작!", flu
 # ★★★ 날짜 설정 ★★★
 # 깃허브 액션에서는 자동으로 오늘 날짜 잡도록 설정
 today_str = datetime.now().strftime('%Y.%m.%d')
-# today_str = "2026.02.02" # 테스트할 때만 주석 풀기
+today_str = "2026.02.02" # 테스트할 때만 주석 풀기
 target_date_db = today_str.replace(".", "")
 
 print(f"📅 수집 타겟 날짜: {today_str} (DB저장: {target_date_db})", flush=True)
