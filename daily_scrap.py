@@ -15,7 +15,7 @@ print("🚀 [버전 6.3] 수급 수집기 (Partial Save Mode) 시작!", flush=Tr
 
 # 1. 날짜 설정 (자동)
 today_str = datetime.now().strftime('%Y.%m.%d')
-today_str = "2026.02.03" # 테스트용
+#today_str = "2026.02.03" # 테스트용
 target_date_db = today_str.replace(".", "")
 
 print(f"📅 수집 타겟 날짜: {today_str} (DB저장: {target_date_db})", flush=True)
