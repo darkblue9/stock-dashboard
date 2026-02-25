@@ -154,6 +154,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <button id="cloudLoadBtn" style="padding: 4px 10px;">☁️불러오기</button>
     <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
     <button id="btnSortEmptyQty" style="padding: 4px 10px;">정렬(수익순)</button>
+    <button id="btnSortSellDate" style="padding: 4px 10px;">정렬(매도일)</button>
     <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
   </div>
 </div>
@@ -713,6 +714,15 @@ document.addEventListener('DOMContentLoaded', () => {
     active.sort((a,b) => calcProfit(b.avg, b.cur, b.fix, b.qty).won - calcProfit(a.avg, a.cur, a.fix, a.qty).won);
     watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     rows = [...active, ...sold, ...watch]; saveRows(); render();
+  });
+  $('#btnSortSellDate').addEventListener('click', () => {
+    // 매도일 오름차순 정렬 (빈 날짜는 가장 뒤로)
+    rows.sort((a,b) => {
+      const da = a.sellDate ? new Date(a.sellDate) : new Date('9999-12-31');
+      const db = b.sellDate ? new Date(b.sellDate) : new Date('9999-12-31');
+      return da - db;
+    });
+    saveRows(); render();
   });
   $('#btnSetTargets').addEventListener('click', () => {
     let changed = 0;
