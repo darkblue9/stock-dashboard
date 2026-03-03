@@ -22,6 +22,19 @@ fdr_logger = logging.getLogger('FinanceDataReader')
 # ---------------------------------------------------------
 print("🚀 [버전 6.3] 수급 수집기 (Partial Save Mode) 시작!", flush=True)
 
+# debug 정보: FDR 버전과 간단 상태 확인
+try:
+    print("FinanceDataReader version:", fdr.__version__, flush=True)
+except AttributeError:
+    pass
+
+# 간단한 핑을 시도해 봄 (네트워크 차단 의심 시)
+try:
+    resp = requests.get("https://raw.githubusercontent.com/FinanceData/FinanceDataReader/master/README.md", timeout=5)
+    print("FDR endpoint reachable (HTTP", resp.status_code, ")", flush=True)
+except Exception as ping_err:
+    print("FDR ping failed:", ping_err, flush=True)
+
 # 1. 날짜 설정 (자동)
 today_str = datetime.now().strftime('%Y.%m.%d')
 #today_str = "2026.02.03" # 테스트용
@@ -37,9 +50,9 @@ for attempt in range(1, max_retries + 1):
     try:
         print(f"running fdr... (시도 {attempt}/{max_retries})")
         
-        # 타임아웃 설정과 함께 호출
-        fdr.data._get_data.__defaults__ = (None, None, 30)  # 30초 타임아웃
-        df_krx = fdr.StockListing('KRX')
+        # 직접 파라미터를 바꾸지 않고 정상 호출만 수행
+        # FDR 내부 구조는 버전마다 변경될 수 있으므로 속성을 건드리지 않습니다.
+        df_krx = fdr.StockListing('KRX')  # 필요 시 version param 추가 가능
         
         if df_krx is None or df_krx.empty:
             print(f"⚠️ FDR 응답이 비어있습니다. {retry_delay}초 후 재시도...")
