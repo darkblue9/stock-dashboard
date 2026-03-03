@@ -79,8 +79,13 @@ for attempt in range(1, max_retries + 1):
 
 # FDR가 실패하거나 빈 데이터일 경우 pykrx로 fallback
 if 'df_krx' not in locals() or df_krx is None or df_krx.empty:
+    # 시중 데이터 제공자 중 하나라도 성공하면 넘어감
+    fallback_success = False
+    # pykrx 시도
     try:
         from pykrx import stock
+        # suppress verbose pykrx logging to avoid formatting bug
+        logging.getLogger('pykrx').setLevel(logging.WARNING)
         print("🔁 pykrx로 종목 코드 가져오기...", flush=True)
         codes = stock.get_market_ticker_list(None, "ALL")
         names = [stock.get_market_ticker_name(c) for c in codes]
@@ -90,8 +95,32 @@ if 'df_krx' not in locals() or df_krx is None or df_krx.empty:
         if df_krx.empty:
             raise ValueError("pykrx로도 종목 리스트를 가져오지 못했습니다.")
         print(f"✅ pykrx로 {len(df_krx)}개 종목 확보", flush=True)
+        fallback_success = True
     except Exception as py_err:
-        print(f"❌ FDR/pykrx 둘 다 실패: {py_err}", flush=True)
+        print(f"⚠️ pykrx 실패: {py_err}", flush=True)
+    # HTML 스크래핑 시도 (KRX corpList 다운로드 페이지)
+    if not fallback_success:
+        try:
+            print("🔁 pandas로 KRX 다운로드 페이지 스크래핑...", flush=True)
+            url = 'https://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13'
+            # SSL 문제 방지를 위해 context 비활성화
+            import ssl
+            ssl._create_default_https_context = ssl._create_unverified_context
+            df_temp = pd.read_html(url)[0]
+            # 표 형식: 종목코드, 종목명, 상장일, 결산월, 업종, 주식수 등
+            df_temp.columns = [c.strip() for c in df_temp.columns]
+            df_krx = pd.DataFrame({'Code': df_temp['종목코드'].astype(str).str.zfill(6),
+                                   'Name': df_temp['종목명']})
+            df_krx['Market'] = ''
+            df_krx['Sector'] = ''
+            if df_krx.empty:
+                raise ValueError("스크래핑 결과가 비어있음")
+            print(f"✅ HTML 스크래핑으로 {len(df_krx)}개 종목 확보", flush=True)
+            fallback_success = True
+        except Exception as html_err:
+            print(f"⚠️ HTML 스크래핑 실패: {html_err}", flush=True)
+    if not fallback_success:
+        print("❌ FDR/pykrx/HTML 스크래핑 모두 실패했습니다. 네트워크 또는 API 변경을 확인하세요.", flush=True)
         exit(1)
 
 # 3. 네이버 금융 크롤링 함수
