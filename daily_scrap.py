@@ -51,31 +51,48 @@ for attempt in range(1, max_retries + 1):
         print(f"running fdr... (시도 {attempt}/{max_retries})")
         
         # 직접 파라미터를 바꾸지 않고 정상 호출만 수행
-        # FDR 내부 구조는 버전마다 변경될 수 있으므로 속성을 건드리지 않습니다.
-        df_krx = fdr.StockListing('KRX')  # 필요 시 version param 추가 가능
+        df_krx = fdr.StockListing('KRX')
         
         if df_krx is None or df_krx.empty:
             print(f"⚠️ FDR 응답이 비어있습니다. {retry_delay}초 후 재시도...")
             time.sleep(retry_delay)
             continue
-            
+        
         df_krx = df_krx.dropna(subset=['Name'])
         df_krx['Code'] = df_krx['Code'].astype(str)
         print(f"✅ KRX 종목 리스트 확보: {len(df_krx)}개 (가격 데이터 확보)", flush=True)
         break
-        
+
     except Exception as e:
         error_msg = str(e)
         print(f"❌ FDR 시도 {attempt} 실패: {error_msg}", flush=True)
         print(f"   상세 에러: {type(e).__name__}", flush=True)
-        
+        # 혹시 응답 본문이 있으면 로그에 같이 남기기
+        if hasattr(e, 'response') and getattr(e.response, 'text', None):
+            print("   응답 본문:", e.response.text[:200], flush=True)
         if attempt < max_retries:
             sleep_time = retry_delay * attempt
             print(f"   {sleep_time}초 후 재시도...", flush=True)
             time.sleep(sleep_time)
         else:
-            print(f"❌ FDR 에러: {error_msg}", flush=True)
-            exit(1)
+            print("⚠️ 모든 시도가 실패했습니다. pykrx 대체 경로를 시도합니다.", flush=True)
+
+# FDR가 실패하거나 빈 데이터일 경우 pykrx로 fallback
+if 'df_krx' not in locals() or df_krx is None or df_krx.empty:
+    try:
+        from pykrx import stock
+        print("🔁 pykrx로 종목 코드 가져오기...", flush=True)
+        codes = stock.get_market_ticker_list(None, "ALL")
+        names = [stock.get_market_ticker_name(c) for c in codes]
+        df_krx = pd.DataFrame({'Code': codes, 'Name': names})
+        df_krx['Market'] = ''
+        df_krx['Sector'] = ''
+        if df_krx.empty:
+            raise ValueError("pykrx로도 종목 리스트를 가져오지 못했습니다.")
+        print(f"✅ pykrx로 {len(df_krx)}개 종목 확보", flush=True)
+    except Exception as py_err:
+        print(f"❌ FDR/pykrx 둘 다 실패: {py_err}", flush=True)
+        exit(1)
 
 # 3. 네이버 금융 크롤링 함수
 def scrap_naver_supply(code):
