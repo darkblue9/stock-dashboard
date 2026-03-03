@@ -7,6 +7,15 @@ import requests
 from io import StringIO
 import concurrent.futures
 from sqlalchemy import create_engine, text
+import logging
+import ssl
+
+# SSL 인증서 검증 설정
+ssl._create_default_https_context = ssl._create_unverified_context
+
+# 로깅 설정
+logging.basicConfig(level=logging.DEBUG)
+fdr_logger = logging.getLogger('FinanceDataReader')
 
 # ---------------------------------------------------------
 # [버전 6.3] 유연한 저장 모드 (수급 없으면 0으로 채우고 저장)
@@ -21,39 +30,72 @@ target_date_db = today_str.replace(".", "")
 print(f"📅 수집 타겟 날짜: {today_str} (DB저장: {target_date_db})", flush=True)
 
 # 2. KRX 전체 종목 리스트 (FDR) - 가격/거래량 정보는 여기서 옴
-try:
-    print("running fdr...")
-    df_krx = fdr.StockListing('KRX')
-    df_krx = df_krx.dropna(subset=['Name'])
-    df_krx['Code'] = df_krx['Code'].astype(str)
-    print(f"✅ KRX 종목 리스트 확보: {len(df_krx)}개 (가격 데이터 확보)", flush=True)
-except Exception as e:
-    print(f"❌ FDR 에러: {e}", flush=True)
-    exit(1)
+max_retries = 5
+retry_delay = 2
+
+for attempt in range(1, max_retries + 1):
+    try:
+        print(f"running fdr... (시도 {attempt}/{max_retries})")
+        
+        # 타임아웃 설정과 함께 호출
+        fdr.data._get_data.__defaults__ = (None, None, 30)  # 30초 타임아웃
+        df_krx = fdr.StockListing('KRX')
+        
+        if df_krx is None or df_krx.empty:
+            print(f"⚠️ FDR 응답이 비어있습니다. {retry_delay}초 후 재시도...")
+            time.sleep(retry_delay)
+            continue
+            
+        df_krx = df_krx.dropna(subset=['Name'])
+        df_krx['Code'] = df_krx['Code'].astype(str)
+        print(f"✅ KRX 종목 리스트 확보: {len(df_krx)}개 (가격 데이터 확보)", flush=True)
+        break
+        
+    except Exception as e:
+        error_msg = str(e)
+        print(f"❌ FDR 시도 {attempt} 실패: {error_msg}", flush=True)
+        print(f"   상세 에러: {type(e).__name__}", flush=True)
+        
+        if attempt < max_retries:
+            sleep_time = retry_delay * attempt
+            print(f"   {sleep_time}초 후 재시도...", flush=True)
+            time.sleep(sleep_time)
+        else:
+            print(f"❌ FDR 에러: {error_msg}", flush=True)
+            exit(1)
 
 # 3. 네이버 금융 크롤링 함수
 def scrap_naver_supply(code):
     url = f"https://finance.naver.com/item/frgn.naver?code={code}"
-    headers = {"User-Agent": "Mozilla/5.0"}
-    try:
-        res = requests.get(url, headers=headers, timeout=3)
-        dfs = pd.read_html(StringIO(res.text), attrs={"class": "type2"}, flavor='lxml')
-        if len(dfs) > 1:
-            df = dfs[1].dropna(subset=[('날짜', '날짜')])
-            # 오늘 날짜 행이 있는지 확인
-            row = df[df[('날짜', '날짜')] == today_str]
-            if not row.empty:
-                foreign = int(row[('외국인', '순매매량')].values[0])
-                agency = int(row[('기관', '순매매량')].values[0])
-                individual = -(foreign + agency)
-                return {
-                    "Code": code, 
-                    "외국인순매수": foreign, 
-                    "기관순매수": agency, 
-                    "개인순매수": individual
-                }
-    except:
-        pass
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+    
+    for attempt in range(3):
+        try:
+            res = requests.get(url, headers=headers, timeout=5)
+            res.raise_for_status()
+            
+            dfs = pd.read_html(StringIO(res.text), attrs={"class": "type2"}, flavor='lxml')
+            if len(dfs) > 1:
+                df = dfs[1].dropna(subset=[('날짜', '날짜')])
+                # 오늘 날짜 행이 있는지 확인
+                row = df[df[('날짜', '날짜')] == today_str]
+                if not row.empty:
+                    foreign = int(row[('외국인', '순매매량')].values[0])
+                    agency = int(row[('기관', '순매매량')].values[0])
+                    individual = -(foreign + agency)
+                    return {
+                        "Code": code, 
+                        "외국인순매수": foreign, 
+                        "기관순매수": agency, 
+                        "개인순매수": individual
+                    }
+        except requests.Timeout:
+            if attempt < 2:
+                time.sleep(1)
+                continue
+        except Exception:
+            pass
+    
     return None
 
 # 4. 멀티스레딩 채굴

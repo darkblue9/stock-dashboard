@@ -3,5 +3,7 @@ pandas
 sqlalchemy
 sqlalchemy-libsql
 pykrx
-sqlalchemy
 libsql-experimental
+lxml
+requests
+urllib3
