@@ -594,7 +594,7 @@ function updateTotalProfit(){
 
 async function fetchPrices(){
   if(!rows.length) return;
-  // include every row that has a valid code; we want to update prices for sold long-term items as well
+  // include every row that has a valid code; update all prices including sold long-term entries
   const targetRows = rows.filter(r => r.code && r.code.length >= 1);
   const codes = targetRows.map(r => r.code).filter(c => c && c.length >= 6);
   if(!codes.length) { setStatus('활성 종목 없음', true); return; }
