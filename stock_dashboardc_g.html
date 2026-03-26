@@ -155,6 +155,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
     <button id="btnSortEmptyQty" style="padding: 4px 10px;">정렬(수익순)</button>
     <button id="btnSortSellDate" style="padding: 4px 10px;">정렬(매도일)</button>
+    <button id="btnSortName" style="padding: 4px 10px;">정렬(이름)</button>
     <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
   </div>
 </div>
@@ -722,6 +723,14 @@ document.addEventListener('DOMContentLoaded', () => {
       return da - db;
     });
     saveRows(); render();
+  });
+  $('#btnSortName').addEventListener('click', () => {
+    const active = [], sold = [], watch = [];
+    rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
+    active.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    sold.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
   $('#btnSetTargets').addEventListener('click', () => {
     let changed = 0;
