@@ -157,6 +157,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <button id="btnSortSellDate" style="padding: 4px 10px;">정렬(매도일)</button>
     <button id="btnSortName" style="padding: 4px 10px;">정렬(이름)</button>
     <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
+    <button id="btnResetTargets" style="padding: 4px 10px;">목표가초기화</button>
   </div>
 </div>
 
@@ -740,6 +741,10 @@ document.addEventListener('DOMContentLoaded', () => {
       else if(!r.qty && r.cur > 0) { const delta = (r.cur >= 100000) ? 3000 : 300; r.utarget = r.cur + delta; r.ltarget = Math.max(0, r.cur - delta); changed++; }
     });
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
+  });
+  $('#btnResetTargets').addEventListener('click', () => {
+    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; });
+    saveRows(); render(); alert('목표가 초기화 완료');
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
