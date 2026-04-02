@@ -38,7 +38,7 @@ except Exception as ping_err:
 # 1. 날짜 설정 (자동)
 today_str = datetime.now().strftime('%Y.%m.%d')
 ##################################
-today_str = "2026.03.30" # 테스트용
+#today_str = "2026.03.30" # 테스트용
 ##################################
 target_date_db = today_str.replace(".", "")
 
