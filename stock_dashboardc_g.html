@@ -136,15 +136,17 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     
     <div style="width:1px; height:20px; background:#ccc; margin:0 6px;"></div>
     
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
-        <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
-    </label>
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
-        <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
-    </label>
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
-    <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
-    </label>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap;">
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
+      </label>
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
+      </label>
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
+      </label>
+    </div>
   </div>
 
   <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:3px;">
