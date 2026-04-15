@@ -39,7 +39,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .target-cell{display:flex; align-items:center; gap:2px; justify-content:center; width:100%;}
 .target-cell input { flex: 1; min-width: 0; font-size: 12px; }
 
-/* === 상단 필터 바 === */
+/* === 상단 필터 바 === */co
 .filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 6px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
 .filter-label { font-weight: bold; margin-right: 4px; font-size: 13px;}
 .filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
@@ -147,17 +147,20 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     </label>
   </div>
 
-  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
+  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:3px;">
     <button id="addRowBtn" style="font-weight:bold; color:#1565c0; padding: 4px 10px;">+ 종목추가</button>
     <button id="saveBtn" style="padding: 4px 10px;">저장</button>
     <button id="cloudSaveBtn" style="padding: 4px 10px;">☁️저장</button>
     <button id="cloudLoadBtn" style="padding: 4px 10px;">☁️불러오기</button>
     <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
+    <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
+    <button id="btnResetTargets" style="padding: 4px 10px;">목표가초기화</button>
+  </div>
+  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
     <button id="btnSortEmptyQty" style="padding: 4px 10px;">정렬(수익순)</button>
     <button id="btnSortSellDate" style="padding: 4px 10px;">정렬(매도일)</button>
     <button id="btnSortName" style="padding: 4px 10px;">정렬(이름)</button>
-    <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
-    <button id="btnResetTargets" style="padding: 4px 10px;">목표가초기화</button>
+    <button id="btnSortDRate" style="padding: 4px 10px;">정렬(등락률)</button>
   </div>
 </div>
 
@@ -731,6 +734,14 @@ document.addEventListener('DOMContentLoaded', () => {
     active.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     sold.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    rows = [...active, ...sold, ...watch]; saveRows(); render();
+  });
+  $('#btnSortDRate').addEventListener('click', () => {
+    const active = [], sold = [], watch = [];
+    rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
+    active.sort((a,b) => (b.dRate||0) - (a.dRate||0));
+    sold.sort((a,b) => (b.dRate||0) - (a.dRate||0));
+    watch.sort((a,b) => (b.dRate||0) - (a.dRate||0));
     rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
   $('#btnSetTargets').addEventListener('click', () => {
