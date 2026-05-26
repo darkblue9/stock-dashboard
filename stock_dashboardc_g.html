@@ -128,10 +128,14 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
   </div>
 
-  <div id="todayTotalsBar" style="display:flex; gap:16px; align-items:center; margin-bottom:6px; padding:5px 10px; background:#f0f4ff; border:1px solid #c5cae9; border-radius:6px; font-size:13px; font-weight:bold;">
-    <span>📥 금일 매수: <span id="todayBuyTotal" style="color:#1565c0;">0</span>원</span>
-    <span style="color:#bbb;">|</span>
-    <span>📤 금일 매도: <span id="todaySellTotal" style="color:#c62828;">0</span>원</span>
+  <div id="todayTotalsBar" style="display:flex; gap:10px; align-items:center; margin-bottom:6px; padding:5px 10px; background:#f0f4ff; border:1px solid #c5cae9; border-radius:6px; font-size:13px; font-weight:bold; flex-wrap:wrap;">
+    <span style="color:#c62828; font-size:12px;">단타</span>
+    <span>📥 매수: <span id="todayShortBuy" style="color:#1565c0;">0</span>원</span>
+    <span>📤 매도: <span id="todayShortSell" style="color:#c62828;">0</span>원</span>
+    <span style="color:#bbb; margin:0 4px;">|</span>
+    <span style="color:#1565c0; font-size:12px;">장투</span>
+    <span>📥 매수: <span id="todayLongBuy" style="color:#1565c0;">0</span>원</span>
+    <span>📤 매도: <span id="todayLongSell" style="color:#c62828;">0</span>원</span>
   </div>
 
   <div class="filter-bar">
@@ -607,19 +611,26 @@ function updateTotalProfit(){
 function updateTodayTotals() {
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-  let buyTotal = 0, sellTotal = 0;
+  let shortBuy = 0, shortSell = 0, longBuy = 0, longSell = 0;
   rows.forEach(r => {
-    if (r.date === todayStr && Number(r.qty) > 0 && Number(r.avg) > 0) {
-      buyTotal += (Number(r.avg) || 0) * (Number(r.qty) || 0);
+    const isShort = (r.group !== 'long');
+    const qty = Number(r.qty) || 0;
+    const avg = Number(r.avg) || 0;
+    const fix = Number(r.fix) || 0;
+    if (r.date === todayStr && qty > 0 && avg > 0) {
+      if (isShort) shortBuy += avg * qty;
+      else          longBuy  += avg * qty;
     }
-    if (r.sellDate === todayStr && Number(r.qty) > 0 && Number(r.fix) > 0) {
-      sellTotal += (Number(r.fix) || 0) * (Number(r.qty) || 0);
+    if (r.sellDate === todayStr && qty > 0 && fix > 0) {
+      if (isShort) shortSell += fix * qty;
+      else          longSell  += fix * qty;
     }
   });
-  const elBuy = $('#todayBuyTotal');
-  const elSell = $('#todaySellTotal');
-  if (elBuy) elBuy.textContent = fmt(Math.round(buyTotal));
-  if (elSell) elSell.textContent = fmt(Math.round(sellTotal));
+  const set = (id, val) => { const el = $('#' + id); if (el) el.textContent = fmt(Math.round(val)); };
+  set('todayShortBuy',  shortBuy);
+  set('todayShortSell', shortSell);
+  set('todayLongBuy',   longBuy);
+  set('todayLongSell',  longSell);
 }
 
 async function fetchPrices(){
