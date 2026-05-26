@@ -128,6 +128,12 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
   </div>
 
+  <div id="todayTotalsBar" style="display:flex; gap:16px; align-items:center; margin-bottom:6px; padding:5px 10px; background:#f0f4ff; border:1px solid #c5cae9; border-radius:6px; font-size:13px; font-weight:bold;">
+    <span>📥 금일 매수: <span id="todayBuyTotal" style="color:#1565c0;">0</span>원</span>
+    <span style="color:#bbb;">|</span>
+    <span>📤 금일 매도: <span id="todaySellTotal" style="color:#c62828;">0</span>원</span>
+  </div>
+
   <div class="filter-bar">
     <span class="filter-label">보기:</span>
     <button class="filter-btn active" data-filter="short">단타만</button>
@@ -587,14 +593,33 @@ function updateTotalProfit(){
   
   const topEl = $('#topTotal');
   if(topEl) {
-    const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2'; 
+    const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
     topEl.innerHTML = `
-        총: ${fmt(Math.round(totalProfit))} 
+        총: ${fmt(Math.round(totalProfit))}
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
+  updateTodayTotals();
+}
+
+function updateTodayTotals() {
+  const today = new Date();
+  const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+  let buyTotal = 0, sellTotal = 0;
+  rows.forEach(r => {
+    if (r.date === todayStr && Number(r.qty) > 0 && Number(r.avg) > 0) {
+      buyTotal += (Number(r.avg) || 0) * (Number(r.qty) || 0);
+    }
+    if (r.sellDate === todayStr && Number(r.qty) > 0 && Number(r.fix) > 0) {
+      sellTotal += (Number(r.fix) || 0) * (Number(r.qty) || 0);
+    }
+  });
+  const elBuy = $('#todayBuyTotal');
+  const elSell = $('#todaySellTotal');
+  if (elBuy) elBuy.textContent = fmt(Math.round(buyTotal));
+  if (elSell) elSell.textContent = fmt(Math.round(sellTotal));
 }
 
 async function fetchPrices(){

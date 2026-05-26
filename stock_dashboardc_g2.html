@@ -15,7 +15,7 @@ input,select,button{font:inherit; font-size:13px;}
 #grid td > input { width: 100%; padding: 2px 2px; box-sizing: border-box; text-align: right; border:none; background: transparent; height: 26px; line-height: 22px;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; font-weight: bold; }
-#grid td input.code { text-align: center; color: #666; font-size: 12px; }
+#grid td input.code { text-align: centenode -vr; color: #666; font-size: 12px; }
 #grid td input[type="date"] { font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -1px; width: 100%; }
 
 td input[readonly]{background:#f9f9f9; color:#555}
@@ -39,7 +39,7 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .target-cell{display:flex; align-items:center; gap:2px; justify-content:center; width:100%;}
 .target-cell input { flex: 1; min-width: 0; font-size: 12px; }
 
-/* === 상단 필터 바 === */
+/* === 상단 필터 바 === */co
 .filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 6px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
 .filter-label { font-weight: bold; margin-right: 4px; font-size: 13px;}
 .filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
@@ -134,28 +134,33 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <button class="filter-btn" data-filter="long">장투만</button>
     <button class="filter-btn" data-filter="all">전체</button>
     
-    <div style="width:1px; height:20px; background:#ccc; margin:0 6px;"></div>
-    
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px;">
-        <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
-    </label>
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
-        <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
-    </label>
-    <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; margin-left:6px;">
-    <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
-    </label>
+    <div style="display:flex; gap:6px; align-items:center; flex-wrap:nowrap; margin-left:auto;">
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="hideSoldToggle" style="margin-right:4px;"> 매도숨김
+      </label>
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="hideWatchToggle" style="margin-right:4px;"> 관망숨김
+      </label>
+      <label style="cursor:pointer; font-weight:bold; display:flex; align-items:center; background:#fff; padding:4px 8px; border:1px solid #ccc; border-radius:4px; white-space:nowrap;">
+          <input type="checkbox" id="mergeToggle" style="margin-right:4px;"> 🔗종목합산
+      </label>
+    </div>
   </div>
 
-  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
+  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:3px;">
     <button id="addRowBtn" style="font-weight:bold; color:#1565c0; padding: 4px 10px;">+ 종목추가</button>
     <button id="saveBtn" style="padding: 4px 10px;">저장</button>
     <button id="cloudSaveBtn" style="padding: 4px 10px;">☁️저장</button>
     <button id="cloudLoadBtn" style="padding: 4px 10px;">☁️불러오기</button>
     <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
+    <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
+    <button id="btnResetTargets" style="padding: 4px 10px;">목표가초기화</button>
+  </div>
+  <div style="display:flex; gap:4px; flex-wrap:wrap; margin-bottom:6px;">
     <button id="btnSortEmptyQty" style="padding: 4px 10px;">정렬(수익순)</button>
     <button id="btnSortSellDate" style="padding: 4px 10px;">정렬(매도일)</button>
-    <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
+    <button id="btnSortName" style="padding: 4px 10px;">정렬(이름)</button>
+    <button id="btnSortDRate" style="padding: 4px 10px;">정렬(등락률)</button>
   </div>
 </div>
 
@@ -594,7 +599,7 @@ function updateTotalProfit(){
 
 async function fetchPrices(){
   if(!rows.length) return;
-  // include every row that has a valid code; update all prices including sold long-term entries
+  // include every row that has a valid code; we want to update prices for sold long-term items as well
   const targetRows = rows.filter(r => r.code && r.code.length >= 1);
   const codes = targetRows.map(r => r.code).filter(c => c && c.length >= 6);
   if(!codes.length) { setStatus('활성 종목 없음', true); return; }
@@ -723,6 +728,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     saveRows(); render();
   });
+  $('#btnSortName').addEventListener('click', () => {
+    const active = [], sold = [], watch = [];
+    rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
+    active.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    sold.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
+    rows = [...active, ...sold, ...watch]; saveRows(); render();
+  });
+  $('#btnSortDRate').addEventListener('click', () => {
+    const active = [], sold = [], watch = [];
+    rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
+    active.sort((a,b) => (b.dRate||0) - (a.dRate||0));
+    sold.sort((a,b) => (b.dRate||0) - (a.dRate||0));
+    watch.sort((a,b) => (b.dRate||0) - (a.dRate||0));
+    rows = [...active, ...sold, ...watch]; saveRows(); render();
+  });
   $('#btnSetTargets').addEventListener('click', () => {
     let changed = 0;
     rows.forEach(r => {
@@ -731,6 +752,10 @@ document.addEventListener('DOMContentLoaded', () => {
       else if(!r.qty && r.cur > 0) { const delta = (r.cur >= 100000) ? 3000 : 300; r.utarget = r.cur + delta; r.ltarget = Math.max(0, r.cur - delta); changed++; }
     });
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
+  });
+  $('#btnResetTargets').addEventListener('click', () => {
+    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; });
+    saveRows(); render(); alert('목표가 초기화 완료');
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
