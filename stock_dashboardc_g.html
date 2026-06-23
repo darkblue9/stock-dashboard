@@ -713,13 +713,17 @@ function downloadBackup() {
 function restoreBackup(event) {
     const file = event.target.files[0];
     if (!file) return;
+    event.target.value = ''; // 같은 파일 재선택 가능하도록 초기화
     const reader = new FileReader();
     reader.onload = (e) => {
         try {
             const data = JSON.parse(e.target.result);
             if (data.rows && Array.isArray(data.rows)) {
                 if (confirm(`백업 파일(${data.timestamp})로 복구하시겠습니까?\n현재 데이터는 덮어씌워집니다.`)) {
-                    rows = data.rows;
+                    rows = data.rows.map(r => {
+                        if (typeof r !== 'object' || r === null) return { group: 'short' };
+                        return { ...r, group: r.group || 'short', memo: r.memo || '' };
+                    });
                     if (data.settings) {
                         settings = Object.assign(settings, data.settings);
                     }
@@ -727,6 +731,7 @@ function restoreBackup(event) {
                     saveSettings();
                     applySettingsToUI();
                     render();
+                    startPolling(); // 복구 후 갱신 주기도 재적용
                     alert('복구 완료!');
                 }
             } else {
@@ -889,6 +894,8 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
+  $('#saveBtn').addEventListener('click', () => { saveSettings(); startPolling(); alert('설정이 저장됐습니다.'); });
+  $('#pollSec').addEventListener('change', startPolling); // 주기 변경 즉시 재적용
   $('#backupBtn').addEventListener('click', downloadBackup);
   $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', restoreBackup);
