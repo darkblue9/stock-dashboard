@@ -162,6 +162,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <button id="saveBtn" style="padding: 4px 10px;">저장</button>
     <button id="cloudSaveBtn" style="padding: 4px 10px;">☁️저장</button>
     <button id="cloudLoadBtn" style="padding: 4px 10px;">☁️불러오기</button>
+    <button id="undoBtn" style="display:none; padding: 4px 10px; background:#fff3e0; border:1px solid #ffb74d; color:#e65100; font-weight:bold;">↩️ 되돌리기</button>
     <button id="copyTxtBtn" style="padding: 4px 10px;">📋복사</button>
     <button id="btnSetTargets" style="padding: 4px 10px;">목표가자동</button>
     <button id="btnResetTargets" style="padding: 4px 10px;">목표가초기화</button>
@@ -289,10 +290,32 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-const KEY_ROWS='rows_v5_final'; 
+const KEY_ROWS='rows_v5_final';
 const KEY_SET ='set_v5_final';
+const KEY_UNDO='undo_snapshot_v1';
 let rows=[], settings={};
-let currentFilter = 'short'; 
+let currentFilter = 'short';
+
+function saveUndoSnapshot() {
+  const snapshot = {
+    rows: JSON.parse(JSON.stringify(rows)),
+    settings: JSON.parse(JSON.stringify(settings)),
+    savedAt: new Date().toLocaleString('ko-KR')
+  };
+  saveJSON(KEY_UNDO, snapshot);
+  const btn = $('#undoBtn');
+  if (btn) { btn.style.display = 'inline-block'; btn.title = '저장 시각: ' + snapshot.savedAt; }
+}
+
+function restoreUndoSnapshot() {
+  const snapshot = loadJSON(KEY_UNDO, null);
+  if (!snapshot) { alert('되돌릴 데이터가 없습니다.'); return; }
+  if (!confirm(`[${snapshot.savedAt}] 시점으로 되돌리시겠습니까?\n현재 데이터는 사라집니다.`)) return;
+  rows = snapshot.rows.map(r => ({ ...r, group: r.group || 'short', memo: r.memo || '' }));
+  settings = Object.assign(settings, snapshot.settings);
+  saveRows(); saveSettings(); applySettingsToUI(); render();
+  alert('되돌리기 완료!');
+}
 
 function loadJSON(k,d){ try{ return JSON.parse(localStorage.getItem(k)) ?? d; }catch{ return d; } }
 function saveJSON(k,o){ localStorage.setItem(k, JSON.stringify(o)); }
@@ -720,7 +743,8 @@ function restoreBackup(event) {
         try {
             const data = JSON.parse(e.target.result);
             if (data.rows && Array.isArray(data.rows)) {
-                if (confirm(`백업 파일(${data.timestamp})로 복구하시겠습니까?\n현재 데이터는 덮어씌워집니다.`)) {
+                if (confirm(`백업 파일(${data.timestamp})로 복구하시겠습니까?\n현재 데이터는 덮어씌워집니다.\n\n(직전 데이터는 [↩️ 되돌리기] 버튼으로 복원 가능합니다)`)) {
+                    saveUndoSnapshot(); // 덮어쓰기 전 자동 스냅샷
                     rows = data.rows.map(r => {
                         if (typeof r !== 'object' || r === null) return { group: 'short' };
                         return { ...r, group: r.group || 'short', memo: r.memo || '' };
@@ -732,8 +756,8 @@ function restoreBackup(event) {
                     saveSettings();
                     applySettingsToUI();
                     render();
-                    startPolling(); // 복구 후 갱신 주기도 재적용
-                    alert('복구 완료!');
+                    startPolling();
+                    alert('복구 완료!\n실수로 불러왔다면 [↩️ 되돌리기] 버튼을 누르세요.');
                 }
             } else {
                 alert('잘못된 백업 파일 형식입니다.');
@@ -873,38 +897,46 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) { alert('에러: '+e.message); } 
   });
   
-  $('#cloudLoadBtn').addEventListener('click', async () => { 
-      if(!confirm('불러오면 덮어씌워집니다.')) return; 
-      try { 
-          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID); 
-          const json = await res.json(); 
-          if(json.rows) { 
-              rows = json.rows.map(r => ({ ...r, group: r.group || 'short' })); 
-              saveRows(); 
-          } 
-          if(json.settings) { 
-              settings = Object.assign(settings, json.settings); 
-              applySettingsToUI(); 
-              saveSettings(); 
-          } 
-          render(); 
-          alert('불러오기 완료'); 
-      } catch(e) { alert('에러: '+e.message); } 
+  $('#cloudLoadBtn').addEventListener('click', async () => {
+      if(!confirm('☁️ 클라우드에서 불러오면 현재 데이터가 덮어씌워집니다.\n\n계속하시겠습니까?\n(직전 데이터는 [↩️ 되돌리기] 버튼으로 복원 가능합니다)')) return;
+      saveUndoSnapshot(); // 덮어쓰기 전 자동 스냅샷
+      try {
+          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID);
+          const json = await res.json();
+          if(json.rows) {
+              rows = json.rows.map(r => ({ ...r, group: r.group || 'short' }));
+              saveRows();
+          }
+          if(json.settings) {
+              settings = Object.assign(settings, json.settings);
+              applySettingsToUI();
+              saveSettings();
+          }
+          render();
+          alert('불러오기 완료\n실수로 불러왔다면 [↩️ 되돌리기] 버튼을 누르세요.');
+      } catch(e) { alert('에러: '+e.message); }
   });
 
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
 
   $('#saveBtn').addEventListener('click', () => { saveSettings(); startPolling(); alert('설정이 저장됐습니다.'); });
-  $('#pollSec').addEventListener('change', startPolling); // 주기 변경 즉시 재적용
+  $('#pollSec').addEventListener('change', startPolling);
+  $('#undoBtn').addEventListener('click', restoreUndoSnapshot);
   $('#backupBtn').addEventListener('click', downloadBackup);
   $('#restoreBtn').addEventListener('click', () => $('#fileInput').click());
   $('#fileInput').addEventListener('change', restoreBackup);
 
   try {
-      loadAll(); 
-      render(); 
+      loadAll();
+      render();
       startPolling();
+      // 이전 스냅샷이 있으면 되돌리기 버튼 표시
+      const prevSnap = loadJSON(KEY_UNDO, null);
+      if (prevSnap) {
+        const btn = $('#undoBtn');
+        if (btn) { btn.style.display = 'inline-block'; btn.title = '저장 시각: ' + prevSnap.savedAt; }
+      }
       
       const archiveInput = $('#archivedProfitInput'); 
       if(archiveInput) {
