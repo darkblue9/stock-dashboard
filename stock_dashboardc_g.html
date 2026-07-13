@@ -688,21 +688,6 @@ async function fetchPrices(){
       }
     });
 
-    // 자동매도 체크: 현재가 <= 자동매도가이면 매도가 자동 입력
-    const autoSoldNames = [];
-    rows.forEach(r => {
-      if (r.autosell > 0 && Number(r.qty) > 0 && !r.fix && r.cur > 0 && r.cur <= r.autosell) {
-        r.fix = r.cur;
-        const t = new Date();
-        r.sellDate = t.getFullYear() + '-' + String(t.getMonth()+1).padStart(2,'0') + '-' + String(t.getDate()).padStart(2,'0');
-        autoSoldNames.push((r.name || r.code) + ' (' + fmt(r.cur) + '원)');
-        changed = true;
-      }
-    });
-    if (autoSoldNames.length > 0) {
-      alert('🔔 자동매도 실행!\n' + autoSoldNames.join('\n'));
-    }
-
     if(changed) { saveRows(); render(); }
     setStatus('OK ' + new Date().toLocaleTimeString(), true);
   } catch(e) { console.error(e); setStatus('에러: '+e.message, false); }
