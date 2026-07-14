@@ -481,9 +481,9 @@ function render(){
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
       <td><input class="qty" value="${r.qty||''}" ${readOnlyAttr}></td>
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
-      <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" type="number" step="${stepVal}" value="${r.utarget||''}"></div></td>
-      <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" type="number" step="${stepVal}" value="${r.ltarget||''}"></div></td>
-      <td style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" type="number" step="${stepVal}" value="${r.autosell||''}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
+      <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" value="${r.utarget ? fmt(r.utarget) : ''}"></div></td>
+      <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" value="${r.ltarget ? fmt(r.ltarget) : ''}"></div></td>
+      <td style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" value="${r.autosell ? fmt(r.autosell) : ''}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
@@ -563,6 +563,7 @@ function render(){
         const bindTarget = (sel, key) => {
             const el = tr.querySelector(sel);
             el.addEventListener('change', () => { rows[realIndex][key] = toNum(el.value); saveRows(); updateRowCalculation(tr, r); });
+            el.addEventListener('blur', () => { el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : ''; });
         };
         bindTarget('.utarget', 'utarget'); bindTarget('.ltarget', 'ltarget'); bindTarget('.autosell', 'autosell');
     }
