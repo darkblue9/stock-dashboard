@@ -789,12 +789,22 @@ document.addEventListener('DOMContentLoaded', () => {
     watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
+  let sellDateSortAsc = true;
   $('#btnSortSellDate').addEventListener('click', () => {
-    // 매도일 오름차순 정렬 (빈 날짜는 가장 뒤로)
-    rows.sort((a,b) => {
-      const da = a.sellDate ? new Date(a.sellDate) : new Date('9999-12-31');
-      const db = b.sellDate ? new Date(b.sellDate) : new Date('9999-12-31');
-      return da - db;
+    const dir = sellDateSortAsc ? 1 : -1;
+    sellDateSortAsc = !sellDateSortAsc;
+    $('#btnSortSellDate').textContent = '정렬(매도일)' + (sellDateSortAsc ? ' ▲' : ' ▼');
+
+    const groupOrder = r => { if(r.qty > 0 && !r.fix) return 0; if(r.qty > 0 && r.fix > 0) return 1; return 2; };
+    const FAR = '9999-12-31';
+    rows.sort((a, b) => {
+      const gd = groupOrder(a) - groupOrder(b);
+      if (gd !== 0) return gd;
+      const da = a.sellDate || FAR;
+      const db = b.sellDate || FAR;
+      if (da < db) return -1 * dir;
+      if (da > db) return  1 * dir;
+      return 0;
     });
     saveRows(); render();
   });
