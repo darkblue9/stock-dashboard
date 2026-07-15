@@ -595,20 +595,22 @@ function moveSoldRowToBottom(index) {
 }
 
 function updateTotalProfit(){
-  let totalProfit = 0; let operatingProfit = 0; 
-  let operatingInvest = 0; let operatingAsset = 0; 
+  let totalProfit = 0; let operatingProfit = 0;
+  let operatingInvest = 0; let operatingAsset = 0;
+  let todayProfit = 0;
 
   if(rows && rows.length > 0) {
       rows.forEach(r => {
         if(currentFilter === 'short' && r.group === 'long') return;
         if(currentFilter === 'long' && r.group === 'short') return;
         const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-        totalProfit += won; 
-        
-        if(r.qty > 0 && !r.fix) { 
-            operatingProfit += won; 
-            operatingInvest += (r.avg || 0) * r.qty; 
-            operatingAsset += (r.cur || 0) * r.qty;  
+        totalProfit += won;
+        todayProfit += calculateDayProfitForRow(r);
+
+        if(r.qty > 0 && !r.fix) {
+            operatingProfit += won;
+            operatingInvest += (r.avg || 0) * r.qty;
+            operatingAsset += (r.cur || 0) * r.qty;
         }
       });
   }
@@ -622,13 +624,16 @@ function updateTotalProfit(){
   if(elTotal) { elTotal.textContent = fmt(Math.round(totalProfit)); elTotal.className = totalProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
   const elOperating = $('#operatingProfit');
   if(elOperating) { elOperating.textContent = fmt(Math.round(operatingProfit)); elOperating.className = operatingProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
-  
+
   const topEl = $('#topTotal');
   if(topEl) {
-    const opColor = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
+    const opColor  = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
+    const dayColor = todayProfit    >= 0 ? '#d32f2f' : '#1976d2';
+    const daySign  = todayProfit    >= 0 ? '+' : '';
     topEl.innerHTML = `
         총: ${fmt(Math.round(totalProfit))}
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
+        <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(todayProfit))}</span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
