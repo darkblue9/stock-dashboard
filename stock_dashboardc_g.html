@@ -249,6 +249,7 @@ function updateRowCalculation(tr, r){
   } else {
       dayProfit = calculateDayProfitForRow(r);
   }
+  _todayProfitSum += dayProfit;
 
   const dp = tr.querySelector('.dp');
   if(dp) {
@@ -296,6 +297,7 @@ const KEY_SET ='set_v5_final';
 const KEY_UNDO='undo_snapshot_v1';
 let rows=[], settings={};
 let currentFilter = 'short';
+let _todayProfitSum = 0; // render()에서 집계한 당일 손익 합계
 
 function saveUndoSnapshot() {
   const snapshot = {
@@ -428,6 +430,7 @@ function aggregateRows(originalRows) {
 function render(){
   const tb=$('#tbody'); if(!tb) return;
   tb.innerHTML='';
+  _todayProfitSum = 0; // 렌더링 시작 시 초기화
   const useMerge = $('#mergeToggle').checked;
   let displayRows = [];
   
@@ -597,7 +600,6 @@ function moveSoldRowToBottom(index) {
 function updateTotalProfit(){
   let totalProfit = 0; let operatingProfit = 0;
   let operatingInvest = 0; let operatingAsset = 0;
-  let todayProfit = 0;
 
   if(rows && rows.length > 0) {
       rows.forEach(r => {
@@ -605,7 +607,6 @@ function updateTotalProfit(){
         if(currentFilter === 'long' && r.group === 'short') return;
         const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
         totalProfit += won;
-        todayProfit += calculateDayProfitForRow(r);
 
         if(r.qty > 0 && !r.fix) {
             operatingProfit += won;
@@ -628,12 +629,12 @@ function updateTotalProfit(){
   const topEl = $('#topTotal');
   if(topEl) {
     const opColor  = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
-    const dayColor = todayProfit    >= 0 ? '#d32f2f' : '#1976d2';
-    const daySign  = todayProfit    >= 0 ? '+' : '';
+    const dayColor = _todayProfitSum >= 0 ? '#d32f2f' : '#1976d2';
+    const daySign  = _todayProfitSum >= 0 ? '+' : '';
     topEl.innerHTML = `
         총: ${fmt(Math.round(totalProfit))}
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
-        <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(todayProfit))}</span>
+        <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}</span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
