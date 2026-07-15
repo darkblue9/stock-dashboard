@@ -363,15 +363,28 @@ function calculateDayProfitForRow(r) {
   if (!r.qty || Number(r.qty) <= 0) return 0;
   const today = new Date();
   const todayStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-  const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
-  if (r.date === todayStr) { return won; } 
-  else {
-      const curPrice = r.cur || 0; const rate = r.dRate || 0;
-      let prevClose = 0; if (curPrice > 0) prevClose = curPrice / (1 + rate / 100);
-      const evalPrice = (r.fix && r.fix > 0) ? r.fix : curPrice;
-      if (evalPrice > 0 && prevClose > 0) { return (evalPrice - prevClose) * r.qty; }
+
+  const isSold     = r.fix > 0;
+  const boughtToday = r.date === todayStr;
+  const soldToday   = r.sellDate === todayStr;
+
+  // 매도된 종목인데 오늘 매도가 아니면 오늘 손익 없음
+  if (isSold && !soldToday) return 0;
+
+  // 오늘 매수한 종목: 매수가 기준 당일 전체 손익
+  if (boughtToday) {
+    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+    return won;
   }
-  return 0;
+
+  // 이전 매수 + 보유 중 or 오늘 매도: 전일 종가 대비 변동분
+  const curPrice = r.cur || 0;
+  const rate     = r.dRate || 0;
+  if (curPrice <= 0) return 0;
+  const prevClose  = curPrice / (1 + rate / 100);
+  const evalPrice  = isSold ? r.fix : curPrice;
+  if (prevClose <= 0) return 0;
+  return (evalPrice - prevClose) * r.qty;
 }
 
 function aggregateRows(originalRows) {
