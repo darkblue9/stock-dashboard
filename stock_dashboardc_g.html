@@ -631,10 +631,12 @@ function updateTotalProfit(){
     const opColor  = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
     const dayColor = _todayProfitSum >= 0 ? '#d32f2f' : '#1976d2';
     const daySign  = _todayProfitSum >= 0 ? '+' : '';
+    const dayRate  = operatingInvest > 0 ? (_todayProfitSum / operatingInvest * 100).toFixed(2) : null;
+    const dayRateStr = dayRate !== null ? ` (${dayRate >= 0 ? '+' : ''}${dayRate}%)` : '';
     topEl.innerHTML = `
         총: ${fmt(Math.round(totalProfit))}
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
-        <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}</span>
+        <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}<span style="font-size:0.85em; font-weight:normal;">${dayRateStr}</span></span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
