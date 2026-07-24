@@ -121,9 +121,15 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
       <label style="font-size:14px; display:flex; align-items:center;"><input type="checkbox" id="liveToggle" checked style="margin-right:4px;"> <b>실시간 갱신</b></label>
       <span id="status" class="status">대기</span>
       <div style="display:flex; align-items:center; background:#e8f5e9; padding:2px 6px; border-radius:4px; border:1px solid #c8e6c9;">
-        <label title="대시보드에서 삭제한 종목들의 수익금 합계 (엑셀 이관 후)">🏛️ 기실현수익(아카이브): 
+        <label title="대시보드에서 삭제한 종목들의 수익금 합계 (엑셀 이관 후)">🏛️ 기실현수익(아카이브):
           <input id="archivedProfitInput" value="0" style="width:80px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
         </label>
+      </div>
+      <div style="display:flex; align-items:center; background:#fff8e1; padding:2px 6px; border-radius:4px; border:1px solid #ffe082;">
+        <label title="내 총 투자 가능 금액 (수익률 계산 기준)">💰 총 투자금:
+          <input id="totalCapitalInput" value="0" style="width:90px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
+        </label>
+        <span id="capitalProfitBadge" style="margin-left:6px; font-size:12px; font-weight:bold;"></span>
       </div>
     </div>
     <div id="topTotal" class="top-total" style="position:static; margin:0; box-shadow:none; border:none; background:transparent;">총: 0</div>
@@ -333,11 +339,13 @@ function loadAll(){
   const savedSettings = loadJSON(KEY_SET,{});
   let arch = savedSettings.archivedProfit;
   if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
+  let cap = savedSettings.totalCapital;
+  if(typeof cap !== 'number' || isNaN(cap)) cap = 0;
 
   settings=Object.assign({
-    apiBase:'https://stock-dashboard.respite9.workers.dev', 
+    apiBase:'https://stock-dashboard.respite9.workers.dev',
     apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, savedSettings, { archivedProfit: arch });
+  }, savedSettings, { archivedProfit: arch, totalCapital: cap });
   
   applySettingsToUI();
 }
@@ -347,14 +355,17 @@ function applySettingsToUI(){
   const elMode = $('#apiMode'); if(elMode) elMode.value = settings.apiMode;
   const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
   const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
+  const elCap  = $('#totalCapitalInput');  if(elCap)  elCap.value  = fmt(settings.totalCapital);
 }
 
 function saveSettings(){
   settings.apiBase=$('#apiBase').value.trim();
   settings.apiMode=$('#apiMode').value;
   settings.pollSec=Math.max(2, Number($('#pollSec').value)||10);
-  const elArch = $('#archivedProfitInput'); 
-  if(elArch) settings.archivedProfit = toNum(elArch.value); 
+  const elArch = $('#archivedProfitInput');
+  if(elArch) settings.archivedProfit = toNum(elArch.value);
+  const elCap = $('#totalCapitalInput');
+  if(elCap) settings.totalCapital = toNum(elCap.value);
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -654,6 +665,21 @@ function updateTotalProfit(){
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
+  // 총 투자금 대비 손익 뱃지
+  const cap = (settings && typeof settings.totalCapital === 'number') ? settings.totalCapital : 0;
+  const badge = $('#capitalProfitBadge');
+  if (badge) {
+    if (cap > 0) {
+      const capRate = (totalProfit / cap * 100).toFixed(2);
+      const capSign = totalProfit >= 0 ? '+' : '';
+      const capColor = totalProfit >= 0 ? '#c62828' : '#1565c0';
+      badge.textContent = `${capSign}${fmt(Math.round(totalProfit))}원 (${capSign}${capRate}%)`;
+      badge.style.color = capColor;
+    } else {
+      badge.textContent = '';
+    }
+  }
+
   updateTodayTotals();
 }
 
@@ -974,10 +1000,15 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn) { btn.style.display = 'inline-block'; btn.title = '저장 시각: ' + prevSnap.savedAt; }
       }
       
-      const archiveInput = $('#archivedProfitInput'); 
+      const archiveInput = $('#archivedProfitInput');
       if(archiveInput) {
           archiveInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
           archiveInput.addEventListener('blur', () => { archiveInput.value = fmt(toNum(archiveInput.value)); });
+      }
+      const capitalInput = $('#totalCapitalInput');
+      if(capitalInput) {
+          capitalInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          capitalInput.addEventListener('blur', () => { capitalInput.value = fmt(toNum(capitalInput.value)); });
       }
   } catch(e) {
       console.error("초기화 중 오류 발생:", e);
