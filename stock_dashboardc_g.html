@@ -651,6 +651,28 @@ function updateTotalProfit(){
   const elOperating = $('#operatingProfit');
   if(elOperating) { elOperating.textContent = fmt(Math.round(operatingProfit)); elOperating.className = operatingProfit >= 0 ? 'profit-pos' : 'profit-neg'; }
 
+  // 총 투자금 (수익률/투자가능금액 계산 기준)
+  const cap = (settings && typeof settings.totalCapital === 'number') ? settings.totalCapital : 0;
+
+  // [투자 가능 금액] 총 투자금 + 실현손익(아카이브 + 매도확정) - 현재 보유 매수원가
+  // 필터(단타/장투)와 무관하게 항상 전체 기준으로 계산해야 실제 현금이 맞음
+  let realizedProfit = (settings && typeof settings.archivedProfit === 'number') ? settings.archivedProfit : 0;
+  let heldInvest = 0;
+  if(rows && rows.length > 0) {
+      rows.forEach(r => {
+        const qty = Number(r.qty) || 0;
+        const fix = Number(r.fix) || 0;
+        if (fix > 0) {
+            // 매도 확정 → 실현손익
+            realizedProfit += calcProfit(r.avg, r.cur, r.fix, r.qty).won;
+        } else if (qty > 0) {
+            // 보유 중 → 이미 사용한(잠긴) 원금
+            heldInvest += (Number(r.avg) || 0) * qty;
+        }
+      });
+  }
+  const availableCash = cap + realizedProfit - heldInvest;
+
   const topEl = $('#topTotal');
   if(topEl) {
     const opColor  = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
@@ -663,11 +685,11 @@ function updateTotalProfit(){
         <span style="font-size:0.9em; margin-left:4px; color:${opColor}; font-weight:normal;">(운영: ${fmt(Math.round(operatingProfit))})</span>
         <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}<span style="font-size:0.85em; font-weight:normal;">${dayRateStr}</span></span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
+        ${cap > 0 ? `<span title="지금 매수에 쓸 수 있는 현금&#10;= 총 투자금 + 실현손익(아카이브+매도확정) - 보유종목 매수금액" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${availableCash >= 0 ? '#2e7d32' : '#c62828'};">💵 매수가능 현금: ${fmt(Math.round(availableCash))}</span>` : ''}
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
   // 총 투자금 대비 손익 뱃지
-  const cap = (settings && typeof settings.totalCapital === 'number') ? settings.totalCapital : 0;
   const badge = $('#capitalProfitBadge');
   if (badge) {
     if (cap > 0) {
