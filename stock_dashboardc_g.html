@@ -144,6 +144,11 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
         </label>
         <span id="capitalProfitBadge" style="margin-left:6px; font-size:12px; font-weight:bold;"></span>
       </div>
+      <div style="display:flex; align-items:center; background:#eceff1; padding:2px 6px; border-radius:4px; border:1px solid #b0bec5;">
+        <label title="증권사 앱의 주문가능금액을 그대로 입력하세요.&#10;대시보드 계산값과 얼마나 어긋나는지 감시합니다. (0이면 감시 끔)">🏦 실제 주문가능:
+          <input id="realCashInput" value="0" style="width:80px; text-align:right; font-weight:bold; border:none; background:transparent; border-bottom:1px solid #999;">
+        </label>
+      </div>
     </div>
     <!-- width:100% → 항상 다음 줄로 내려서, 금액 자릿수가 바뀌어도 줄바꿈이 왔다갔다 하지 않음 -->
     <div id="topTotal" class="top-total" style="position:static; margin:2px 0 0 0; padding:0; box-shadow:none; border:none; background:transparent; width:100%; white-space:nowrap;">총: 0</div>
@@ -382,11 +387,13 @@ function loadAll(){
   if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
   let cap = savedSettings.totalCapital;
   if(typeof cap !== 'number' || isNaN(cap)) cap = 0;
+  let realCash = savedSettings.realCash;
+  if(typeof realCash !== 'number' || isNaN(realCash)) realCash = 0;
 
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev',
     apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
-  }, savedSettings, { archivedProfit: arch, totalCapital: cap });
+  }, savedSettings, { archivedProfit: arch, totalCapital: cap, realCash: realCash });
   
   applySettingsToUI();
 }
@@ -397,6 +404,7 @@ function applySettingsToUI(){
   const elPoll = $('#pollSec'); if(elPoll) elPoll.value = settings.pollSec;
   const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
   const elCap  = $('#totalCapitalInput');  if(elCap)  elCap.value  = fmt(settings.totalCapital);
+  const elReal = $('#realCashInput');      if(elReal) elReal.value = fmt(settings.realCash);
 }
 
 function saveSettings(){
@@ -407,6 +415,8 @@ function saveSettings(){
   if(elArch) settings.archivedProfit = toNum(elArch.value);
   const elCap = $('#totalCapitalInput');
   if(elCap) settings.totalCapital = toNum(elCap.value);
+  const elReal = $('#realCashInput');
+  if(elReal) settings.realCash = toNum(elReal.value);
   saveJSON(KEY_SET,settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
@@ -723,6 +733,13 @@ function updateTotalProfit(){
   }
   const availableCash = cap + realizedProfit - heldInvest;
 
+  // [오차 감시] 증권사 실제 주문가능금액과 대시보드 계산값의 차이
+  // 플러스면 대시보드가 실제보다 적게 잡고 있다는 뜻 → 그만큼 아카이브에 이익을 더해야 함
+  const realCash = (settings && typeof settings.realCash === 'number') ? settings.realCash : 0;
+  const cashGap  = realCash - availableCash;
+  const gapOn    = (realCash !== 0 && cap > 0);
+  const gapOk    = Math.abs(cashGap) < 1000;   // 1,000원 미만이면 수수료 반올림 수준으로 보고 정상 처리
+
   const topEl = $('#topTotal');
   if(topEl) {
     const opColor  = operatingProfit >= 0 ? '#d32f2f' : '#1976d2';
@@ -736,6 +753,7 @@ function updateTotalProfit(){
         <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}<span style="font-size:0.85em; font-weight:normal;">${dayRateStr}</span></span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
         ${cap > 0 ? `<span title="지금 매수에 쓸 수 있는 현금&#10;= 총 투자금 + 실현손익(아카이브+매도확정) - 보유종목 매수금액" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${availableCash >= 0 ? '#2e7d32' : '#c62828'};">💵 매수가능 현금: ${fmt(Math.round(availableCash))}</span>` : ''}
+        ${gapOn ? `<span title="${gapOk ? '실제 계좌와 일치합니다.' : `엑셀에 보정행 ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}원을 추가한 뒤,&#10;새 합계를 🏛️ 아카이브 칸에 입력하세요.`}" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${gapOk ? '#2e7d32' : '#c62828'};">${gapOk ? '✅ 계좌와 일치' : `⚠️ 오차: ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}`}</span>` : ''}
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
@@ -1082,6 +1100,11 @@ document.addEventListener('DOMContentLoaded', () => {
       if(capitalInput) {
           capitalInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
           capitalInput.addEventListener('blur', () => { capitalInput.value = fmt(toNum(capitalInput.value)); });
+      }
+      const realCashInput = $('#realCashInput');
+      if(realCashInput) {
+          realCashInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          realCashInput.addEventListener('blur', () => { realCashInput.value = fmt(toNum(realCashInput.value)); });
       }
   } catch(e) {
       console.error("초기화 중 오류 발생:", e);
