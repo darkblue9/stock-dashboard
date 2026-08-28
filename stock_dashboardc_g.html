@@ -15,7 +15,7 @@ input,select,button{font:inherit; font-size:13px;}
 #grid td > input { width: 100%; padding: 2px 2px; box-sizing: border-box; text-align: right; border:none; background: transparent; height: 26px; line-height: 22px;}
 #grid td > input:focus { background: #fff; outline: 2px solid #aaa; }
 #grid td input.name { text-align: left; font-weight: bold; }
-#grid td input.code { text-align: centenode -vr; color: #666; font-size: 12px; }
+#grid td input.code { text-align: center; color: #666; font-size: 12px; }
 #grid td input[type="date"] { font-size: 11px; text-align: center; height: 24px; padding: 0; letter-spacing: -1px; width: 100%; }
 
 td input[readonly]{background:#f9f9f9; color:#555}
@@ -46,8 +46,21 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .filter-btn.active { background: #424242; color: #fff; border-color: #000; font-weight: bold;}
 
 .grp-btn { width: 26px; height: 22px; font-size: 11px; font-weight:bold; border:1px solid rgba(0,0,0,0.2); border-radius: 4px; cursor:pointer; padding:0;}
-.grp-short { background: #ffebee; color: #c62828; } 
+.grp-short { background: #ffebee; color: #c62828; }
 .grp-long  { background: #e3f2fd; color: #1565c0; }
+
+/* === 시장 구분 토글 (코/닥/E) — 종목명 왼쪽 20px 정사각 버튼 === */
+.name-cell { display:flex; align-items:center; gap:3px; width:100%; }
+/* .name이 div 안으로 들어가면서 `#grid td > input` 규칙이 안 걸리므로 여기서 다시 지정 */
+.name-cell .name { flex:1; min-width:0; width:100%; padding:2px; box-sizing:border-box;
+                   border:none; background:transparent; height:26px; line-height:22px;
+                   text-align:left; font-weight:bold; }
+.name-cell .name:focus { background:#fff; outline:2px solid #aaa; }
+.mk-btn { width:20px; min-width:20px; height:20px; font-size:10px; font-weight:bold; line-height:1;
+          border:1px solid rgba(0,0,0,0.18); border-radius:4px; cursor:pointer; padding:0; flex-shrink:0; }
+.mk-kospi  { background:#e8eaf6; color:#3949ab; }
+.mk-kosdaq { background:#fff3e0; color:#ef6c00; }
+.mk-etf    { background:#e0f2f1; color:#00695c; }
 
 .status-badge { display:inline-block; padding:2px 4px; border-radius:4px; color:#fff; font-size:11px; line-height:1.2; font-weight:normal; min-width: 32px;}
 .st-active { background:#00897b; }
@@ -205,7 +218,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
 <div style="text-align:right; margin-top:8px; font-weight:bold; font-size:14px;">
   <span id="profitLabel">총 손익</span>: <span id="totalProfit" class="profit-neg">0</span> 
   | <span id="operatingLabel">운영중 손익</span>: <span id="operatingProfit" class="profit-neg">0</span> 
-  (미니닥스 우대계좌 수수료 0.1640527% 반영)
+  (미니닥스 우대계좌 매수 0.0036396% / 매도 0.1536396% 반영)
 </div>
 
 <div id="chartModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
@@ -231,14 +244,40 @@ const fmt=(n)=>(n??0).toLocaleString('ko-KR');
 const toNum=(v)=>Number(String(v||'').replace(/,/g,''))||0;
 
 // [요청 반영] 수수료
-const FEE_BUY=0.0, FEE_SELL=0.0015, TAX_SELL=0.000140527; 
+// 한국투자증권 "위탁(국내수수료우대), 미니닥스" 계좌 기준
+//   유관기관제비용 0.0036396% : 매수/매도 양쪽 모두 부과 (위탁수수료는 우대로 면제)
+//   증권거래세     0.15%      : 매도할 때만 부과
+//   → 매수 0.0036396% / 매도 0.1536396%
+const FEE_BUY=0.000036396, FEE_SELL=0.000036396, TAX_SELL=0.0015;
 
-function calcProfit(avg,cur,fix,qty){
+/* === 시장 구분 (코스피 / 코스닥 / ETF) ===
+   ETF는 국내 상장분이라 매도 시 증권거래세 0.15%가 면제됨.
+   코스피와 코스닥은 현재 세율이 같지만 구분 표시용으로 나눠둠. */
+const MARKETS = ['kospi','kosdaq','etf'];
+const MARKET_INFO = {
+  kospi : { label:'코', cls:'mk-kospi',  title:'코스피 — 매도 시 증권거래세 0.15% (클릭하면 변경)' },
+  kosdaq: { label:'닥', cls:'mk-kosdaq', title:'코스닥 — 매도 시 증권거래세 0.15% (클릭하면 변경)' },
+  etf   : { label:'E',  cls:'mk-etf',    title:'ETF — 증권거래세 면제 (클릭하면 변경)' }
+};
+// 잘 알려진 ETF 브랜드. 자동 추정용이며 버튼 클릭으로 언제든 바꿀 수 있음
+const ETF_BRAND = /^(KODEX|TIGER|ACE|RISE|PLUS|SOL|KOSEF|HANARO|ARIRANG|KBSTAR|TIMEFOLIO|히어로즈|마이다스)[\s_]/i;
+
+// 저장된 market 값이 없으면 기존 종목명 규칙(_D=코스닥, _P=코스피)에서 추정
+function getMarket(r){
+  if (r && MARKETS.includes(r.market)) return r.market;
+  const nm = (r && r.name) ? r.name : '';
+  if (ETF_BRAND.test(nm)) return 'etf';
+  if (/_D\b/.test(nm)) return 'kosdaq';
+  return 'kospi';
+}
+
+function calcProfit(avg,cur,fix,qty,market){
   const base=(fix && fix!==0) ? fix : cur;
   if(!avg||!qty||!base) return {won:0,pct:0};
   const buyAmt=avg*qty;
   const sellAmt=base*qty;
-  const totalCost = (buyAmt * FEE_BUY) + (sellAmt * (FEE_SELL + TAX_SELL));
+  const tax = (market === 'etf') ? 0 : TAX_SELL;   // ETF는 증권거래세 면제
+  const totalCost = (buyAmt * FEE_BUY) + (sellAmt * (FEE_SELL + tax));
   const profit = sellAmt - buyAmt - totalCost;
   return {won:profit, pct: (profit/buyAmt)*100};
 }
@@ -248,7 +287,7 @@ function updateRowCalculation(tr, r){
   r.inv = (r.avg||0) * (r.qty||0); 
   const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
   
-  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+  const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty, getMarket(r));
   
   let dayProfit = 0;
   if (r._isAgg && r.dayProfit !== undefined) {
@@ -386,7 +425,7 @@ function calculateDayProfitForRow(r) {
 
   // 오늘 매수한 종목: 매수가 기준 당일 전체 손익
   if (boughtToday) {
-    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+    const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty, getMarket(r));
     return won;
   }
 
@@ -482,6 +521,7 @@ function render(){
     const tr=document.createElement('tr'); tr.dataset.idx = realIndex;
     if(r._isAgg) tr.style.background = "#fff8e1"; 
     const isLong = r.group === 'long'; const grpClass = isLong ? 'grp-long' : 'grp-short'; const grpText = isLong ? '장' : '단';
+    const mkInfo = MARKET_INFO[getMarket(r)];
     const stepVal = (r.cur >= 100000) ? 500 : 100;
     const dDayStr = getDDay(r.date); const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day') ? 'new' : 'old';
     const dDayBadge = dDayStr ? `<span class="d-day-badge ${dDayClass}">${dDayStr}</span>` : '';
@@ -504,7 +544,10 @@ function render(){
       <td><button class="grp-btn ${grpClass}" ${r._isAgg ? 'disabled style="opacity:0.5"' : ''}>${grpText}</button></td>
       <td>${statusHtml}</td>
       <td><input class="code" value="${r.code||''}" ${readOnlyAttr}></td>
-      <td><input class="name" value="${r.name||''}" ${readOnlyAttr}></td>
+      <td><div class="name-cell">
+        <button class="mk-btn ${mkInfo.cls}" title="${mkInfo.title}" ${r._isAgg ? 'disabled style="opacity:0.5"' : ''}>${mkInfo.label}</button>
+        <input class="name" value="${r.name||''}" ${readOnlyAttr}>
+      </div></td>
       <td><div class="date-cell">${dDayBadge}<input type="date" class="date" value="${r.date||''}" ${readOnlyAttr}></div></td>
       <td><input type="date" class="sdate" value="${r.sellDate||''}" ${readOnlyAttr}></td>
       <td><input class="avg" value="${r.avg?fmt(r.avg):''}" ${readOnlyAttr}></td>
@@ -577,7 +620,13 @@ function render(){
                 render();
             }
         };
-        tr.querySelector('.grp-btn').onclick = () => { 
+        // 시장 구분: 코스피 → 코스닥 → ETF → 코스피 순환 (확인창 없이 바로 전환)
+        tr.querySelector('.mk-btn').onclick = () => {
+            const now = getMarket(rows[realIndex]);
+            rows[realIndex].market = MARKETS[(MARKETS.indexOf(now) + 1) % MARKETS.length];
+            saveRows(); render();
+        };
+        tr.querySelector('.grp-btn').onclick = () => {
             if(confirm('장투/단타 그룹을 변경하시겠습니까?')) {
                 rows[realIndex].group = (rows[realIndex].group === 'short') ? 'long' : 'short'; 
                 saveRows(); render(); 
@@ -631,7 +680,7 @@ function updateTotalProfit(){
       rows.forEach(r => {
         if(currentFilter === 'short' && r.group === 'long') return;
         if(currentFilter === 'long' && r.group === 'short') return;
-        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+        const {won} = calcProfit(r.avg, r.cur, r.fix, r.qty, getMarket(r));
         totalProfit += won;
 
         if(r.qty > 0 && !r.fix) {
@@ -665,10 +714,10 @@ function updateTotalProfit(){
         const fix = Number(r.fix) || 0;
         if (fix > 0) {
             // 매도 확정 → 실현손익
-            realizedProfit += calcProfit(r.avg, r.cur, r.fix, r.qty).won;
+            realizedProfit += calcProfit(r.avg, r.cur, r.fix, r.qty, getMarket(r)).won;
         } else if (qty > 0) {
-            // 보유 중 → 이미 사용한(잠긴) 원금
-            heldInvest += (Number(r.avg) || 0) * qty;
+            // 보유 중 → 이미 나간 현금 (매수금액 + 매수 수수료)
+            heldInvest += (Number(r.avg) || 0) * qty * (1 + FEE_BUY);
         }
       });
   }
@@ -857,7 +906,7 @@ document.addEventListener('DOMContentLoaded', () => {
   $('#btnSortEmptyQty').addEventListener('click', () => {
     const active = [], sold = [], watch = [];
     rows.forEach(r => { if(r.fix > 0) sold.push(r); else if(r.qty > 0) active.push(r); else watch.push(r); });
-    active.sort((a,b) => calcProfit(b.avg, b.cur, b.fix, b.qty).won - calcProfit(a.avg, a.cur, a.fix, a.qty).won);
+    active.sort((a,b) => calcProfit(b.avg, b.cur, b.fix, b.qty, getMarket(b)).won - calcProfit(a.avg, a.cur, a.fix, a.qty, getMarket(a)).won);
     watch.sort((a,b) => (a.name||'').localeCompare(b.name||''));
     rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
@@ -924,7 +973,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     const lines = visibleRows.map(r => {
-      const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty);
+      const {won, pct} = calcProfit(r.avg, r.cur, r.fix, r.qty, getMarket(r));
       const drStr = (r.dRate || 0) + '%';
       
       let dayProfit = 0;
