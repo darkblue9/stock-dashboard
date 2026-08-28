@@ -629,7 +629,7 @@ function render(){
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
       </td>
-      <td><span style="font-size:11px;" class="${drClass}">${drStr}</span></td>
+      <td><span style="font-size:11px;" class="dr ${drClass}">${drStr}</span></td>
       <td><input class="fix" value="${r.fix?fmt(r.fix):''}" ${readOnlyAttr}></td>
       <td><span class="dp">0</span></td>
       <td><span class="pw">0</span></td>
@@ -644,6 +644,7 @@ function render(){
             '<button class="reset-row-btn" title="초기화">초</button><button class="del">삭제</button>'}
         </span>
       </td>`;
+    tr._rowData = r;   // 부분 갱신(시세만 반영)에서 이 행이 어떤 데이터인지 찾기 위해 보관
     tb.appendChild(tr);
 
     if (!r._isAgg) {
@@ -863,6 +864,37 @@ function updateTodayTotals() {
   set('todayLongSell',  longSell);
 }
 
+// [입력 보호] 시세만 바뀐 경우 표를 다시 그리지 않고 값만 제자리에서 갱신한다.
+// render()는 tbody를 통째로 지우고 새로 만들기 때문에, 10초 주기 갱신이
+// 사용자가 입력하던 칸을 없애버려 타이핑하던 값이 사라지는 문제가 있었다.
+// 성공하면 true, 갱신할 행이 없으면 false(호출한 쪽에서 render()로 넘어감).
+function applyPriceUpdate(priceMap, rateMap){
+  const tb = $('#tbody'); if(!tb) return false;
+  const trs = tb.querySelectorAll('tr');
+  if(!trs.length) return false;
+
+  _todayProfitSum = 0;   // render()와 동일하게 여기서 다시 합산
+  trs.forEach(tr => {
+    const r = tr._rowData; if(!r) return;
+    const key = (r.code || '').replace('.KS','').replace('.KQ','');
+    if(priceMap[key] !== undefined){ r.cur = priceMap[key]; r.dRate = rateMap[key]; }
+
+    // 지금 사용자가 커서를 두고 있는 칸은 절대 건드리지 않는다
+    const curEl = tr.querySelector('.cur');
+    if(curEl && document.activeElement !== curEl) curEl.value = r.cur ? fmt(r.cur) : '';
+
+    const drEl = tr.querySelector('.dr');
+    if(drEl){
+      const dr = r.dRate || 0;
+      drEl.textContent = (dr > 0 ? '+' : '') + dr + '%';
+      drEl.className = 'dr ' + (dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : ''));
+    }
+    updateRowCalculation(tr, r, true);
+  });
+  updateTotalProfit();
+  return true;
+}
+
 async function fetchPrices(){
   if(!rows.length) return;
   // include every row that has a valid code; we want to update prices for sold long-term items as well
@@ -896,7 +928,8 @@ async function fetchPrices(){
       }
     });
 
-    if(changed) { saveRows(); render(); }
+    // 표를 통째로 다시 그리면 입력 중이던 칸이 사라지므로, 값만 제자리에서 갱신한다.
+    if(changed) { saveRows(); if(!applyPriceUpdate(priceMap, rateMap)) render(); }
     setStatus('OK ' + new Date().toLocaleTimeString(), true);
   } catch(e) { console.error(e); setStatus('에러: '+e.message, false); }
 }
