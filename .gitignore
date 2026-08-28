@@ -1,3 +1,6 @@
 brstart/brstart - 바로 가기.lnk
 brstart/iestart - 바로 가기.lnk
 CLAUDE.md
+
+# 대시보드 백업 파일 (보유종목·평단·투자금이 그대로 들어있음 → 공개 저장소에 올리면 안 됨)
+stock_dashboard_backup_*.json

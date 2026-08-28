@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>마녀의 대시보드 v7.6.8 (반응속도UP)</title>
+<title>마녀의 대시보드 v7.7.0 (현금·세금 정합성)</title>
 <style>
 /* === 기본 스타일 (13px 유지) === */
 body{font-family:sans-serif; margin:10px; font-size:13px;}
@@ -38,8 +38,12 @@ td input[readonly]{background:#f9f9f9; color:#555}
 .dot.blue{background:#2979ff}
 .target-cell{display:flex; align-items:center; gap:2px; justify-content:center; width:100%;}
 .target-cell input { flex: 1; min-width: 0; font-size: 12px; }
+/* 목표가 도달 시 점 깜빡임 (JS에서 blink-red-dot / blink-blue-dot 클래스를 붙임) */
+@keyframes blinkDot { 0%,100%{opacity:1;} 50%{opacity:0.15;} }
+.blink-red-dot  { animation: blinkDot 0.8s ease-in-out infinite; box-shadow:0 0 5px #ff1744; }
+.blink-blue-dot { animation: blinkDot 0.8s ease-in-out infinite; box-shadow:0 0 5px #2979ff; }
 
-/* === 상단 필터 바 === */co
+/* === 상단 필터 바 === */
 .filter-bar { margin: 8px 0; display:flex; gap: 6px; align-items: center; padding: 6px; background: #f4f4f4; border-radius: 6px; border: 1px solid #ddd; flex-wrap:wrap; }
 .filter-label { font-weight: bold; margin-right: 4px; font-size: 13px;}
 .filter-btn { padding: 5px 10px; border: 1px solid #bbb; background: #fff; cursor: pointer; border-radius: 4px; font-size: 12px;}
@@ -94,7 +98,7 @@ col.col-no { width: 30px; } col.col-group { width: 35px; } col.col-status { widt
 col.col-code { width: 55px; } col.col-name { width: 90px; } 
 col.col-date { width: 78px; } col.col-sdate { width: 78px; } 
 col.col-avg { width: 65px; } col.col-qty { width: 35px; } col.col-inv { width: 75px; }
-col.col-target { width: 85px; } col.col-target { width: 85px; }
+col.col-target { width: 85px; }
 col.col-autosell { width: 72px; }
 col.col-cur { width: 70px; } col.col-rate { width: 50px; }
 col.col-fix { width: 70px; } col.col-day-profit { width: 65px; } col.col-profit { width: 65px; } 
@@ -114,6 +118,11 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <summary style="cursor:pointer; margin-bottom:6px; font-weight:bold; color:#555; font-size:13px;">⚙️ 설정 (API/백업)</summary>
     <div style="padding:10px; background:#f8f8f8; border:1px solid #ddd; margin-bottom:10px; border-radius: 6px;">
       <label>프록시 <input id="apiBase" value="https://stock-dashboard.respite9.workers.dev" style="width:100%"></label><br>
+      <!-- 클라우드 주소는 개인 정보이므로 파일에 하드코딩하지 않고 이 칸(브라우저 저장소)에만 보관 -->
+      <label title="Google Apps Script 배포 URL. 이 파일이 공개 저장소에 올라가므로 코드에 적지 않습니다.">☁️ 클라우드 URL
+        <input id="cloudUrlInput" value="" placeholder="https://script.google.com/macros/s/.../exec" style="width:100%"></label>
+      <label title="여러 대시보드를 구분하는 식별자. 추측하기 어려운 값으로 두세요.">☁️ 클라우드 ID
+        <input id="cloudIdInput" value="" placeholder="추측하기 어려운 값으로 지정" style="width:100%"></label>
       <div style="margin-top:6px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
         <label>모드 <select id="apiMode" style="height:26px;"><option value="auto" selected>자동</option><option value="multi">멀티</option><option value="single">단건</option></select></label>
         <label>Code <input id="codeParam" value="code" style="width:45px"></label>
@@ -288,7 +297,9 @@ function calcProfit(avg,cur,fix,qty,market){
 }
 
 // [핵심] 함수 정의 최상단 이동
-function updateRowCalculation(tr, r){
+// accumulate=true 는 render()가 전체를 다시 그릴 때만 전달한다.
+// (render() 밖에서 호출될 때도 더하면 _todayProfitSum 이 중복 누적되어 당일손익이 부풀려짐)
+function updateRowCalculation(tr, r, accumulate){
   r.inv = (r.avg||0) * (r.qty||0); 
   const elInv = tr.querySelector('.inv'); if(elInv) elInv.value = fmt(r.inv);
   
@@ -300,7 +311,7 @@ function updateRowCalculation(tr, r){
   } else {
       dayProfit = calculateDayProfitForRow(r);
   }
-  _todayProfitSum += dayProfit;
+  if (accumulate) _todayProfitSum += dayProfit;
 
   const dp = tr.querySelector('.dp');
   if(dp) {
@@ -343,7 +354,6 @@ function getDDay(dateStr) {
     return 'D'+d; 
 }
 
-const KEY_PREVCLOSE='prevclose_v1';
 const KEY_ROWS='rows_v5_final';
 const KEY_SET ='set_v5_final';
 const KEY_UNDO='undo_snapshot_v1';
@@ -382,6 +392,12 @@ function loadAll(){
     return { ...r, group: r.group || 'short', memo: r.memo || '' }; 
   });
   
+  // 최초 1회: 종목명(_D/_P/ETF 브랜드)에서 추정한 시장 구분을 실제 값으로 굳혀둔다.
+  // 이렇게 해두면 나중에 종목명을 고쳐도 세금 계산이 조용히 바뀌지 않는다.
+  let mkMigrated = false;
+  rows.forEach(r => { if(!MARKETS.includes(r.market)) { r.market = getMarket(r); mkMigrated = true; } });
+  if(mkMigrated) saveRows();
+
   const savedSettings = loadJSON(KEY_SET,{});
   let arch = savedSettings.archivedProfit;
   if(typeof arch !== 'number' || isNaN(arch)) arch = 0;
@@ -392,10 +408,25 @@ function loadAll(){
 
   settings=Object.assign({
     apiBase:'https://stock-dashboard.respite9.workers.dev',
-    apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price'
+    apiMode:'auto', pollSec:10, codeParam:'code', priceKey:'price',
+    cloudUrl:'', cloudId:'',
+    // 보기 설정 기본값 (새로고침해도 유지되도록 저장 대상에 포함)
+    viewFilter:'short', hideSold:false, hideWatch:false, merge:false, live:true
   }, savedSettings, { archivedProfit: arch, totalCapital: cap, realCash: realCash });
-  
+
   applySettingsToUI();
+}
+
+// 화면에 보이지 않게 쌓이는 시세 히스토리(hist_종목코드) 중 더 이상 없는 종목 것을 정리
+function cleanupHistory(){
+  const alive = new Set(rows.map(r => r.code).filter(Boolean));
+  const dead = [];
+  for(let i=0; i<localStorage.length; i++){
+    const k = localStorage.key(i);
+    if(k && k.startsWith(HIST_KEY_PREFIX) && !alive.has(k.slice(HIST_KEY_PREFIX.length))) dead.push(k);
+  }
+  dead.forEach(k => localStorage.removeItem(k));
+  if(dead.length) console.log(`[정리] 사용하지 않는 시세 히스토리 ${dead.length}건 삭제`);
 }
 
 function applySettingsToUI(){
@@ -405,6 +436,20 @@ function applySettingsToUI(){
   const elArch = $('#archivedProfitInput'); if(elArch) elArch.value = fmt(settings.archivedProfit);
   const elCap  = $('#totalCapitalInput');  if(elCap)  elCap.value  = fmt(settings.totalCapital);
   const elReal = $('#realCashInput');      if(elReal) elReal.value = fmt(settings.realCash);
+  const elCodeP = $('#codeParam'); if(elCodeP) elCodeP.value = settings.codeParam || 'code';
+  const elPriceK= $('#priceKey');  if(elPriceK)elPriceK.value= settings.priceKey  || 'price';
+  const elCUrl  = $('#cloudUrlInput'); if(elCUrl) elCUrl.value = settings.cloudUrl || '';
+  const elCId   = $('#cloudIdInput');  if(elCId)  elCId.value  = settings.cloudId  || '';
+
+  // 보기 설정 복원
+  const elLive = $('#liveToggle');       if(elLive) elLive.checked = settings.live !== false;
+  const elHS   = $('#hideSoldToggle');   if(elHS)   elHS.checked   = !!settings.hideSold;
+  const elHW   = $('#hideWatchToggle');  if(elHW)   elHW.checked   = !!settings.hideWatch;
+  const elMG   = $('#mergeToggle');      if(elMG)   elMG.checked   = !!settings.merge;
+  if(['short','long','all'].includes(settings.viewFilter)){
+    currentFilter = settings.viewFilter;
+    $$('.filter-btn').forEach(b => b.classList.toggle('active', b.dataset.filter === currentFilter));
+  }
 }
 
 function saveSettings(){
@@ -417,7 +462,22 @@ function saveSettings(){
   if(elCap) settings.totalCapital = toNum(elCap.value);
   const elReal = $('#realCashInput');
   if(elReal) settings.realCash = toNum(elReal.value);
+  const elCodeP = $('#codeParam'); if(elCodeP) settings.codeParam = elCodeP.value.trim() || 'code';
+  const elPriceK= $('#priceKey');  if(elPriceK)settings.priceKey  = elPriceK.value.trim() || 'price';
+  const elCUrl  = $('#cloudUrlInput'); if(elCUrl) settings.cloudUrl = elCUrl.value.trim();
+  const elCId   = $('#cloudIdInput');  if(elCId)  settings.cloudId  = elCId.value.trim();
+  saveViewSettings(false);
   saveJSON(KEY_SET,settings);
+}
+
+// 보기 설정(필터·숨김·합산·실시간)을 settings에 담는다. persist=true면 즉시 저장까지.
+function saveViewSettings(persist){
+  settings.viewFilter = currentFilter;
+  const elHS = $('#hideSoldToggle');  if(elHS) settings.hideSold  = elHS.checked;
+  const elHW = $('#hideWatchToggle'); if(elHW) settings.hideWatch = elHW.checked;
+  const elMG = $('#mergeToggle');     if(elMG) settings.merge     = elMG.checked;
+  const elLV = $('#liveToggle');      if(elLV) settings.live      = elLV.checked;
+  if(persist !== false) saveJSON(KEY_SET, settings);
 }
 function saveRows(){ saveJSON(KEY_ROWS,rows); }
 
@@ -532,7 +592,6 @@ function render(){
     if(r._isAgg) tr.style.background = "#fff8e1"; 
     const isLong = r.group === 'long'; const grpClass = isLong ? 'grp-long' : 'grp-short'; const grpText = isLong ? '장' : '단';
     const mkInfo = MARKET_INFO[getMarket(r)];
-    const stepVal = (r.cur >= 100000) ? 500 : 100;
     const dDayStr = getDDay(r.date); const dDayClass = (dDayStr.startsWith('D+0') || dDayStr==='D-Day') ? 'new' : 'old';
     const dDayBadge = dDayStr ? `<span class="d-day-badge ${dDayClass}">${dDayStr}</span>` : '';
     const hasMemo = r.memo && r.memo.trim().length > 0; const memoClass = hasMemo ? 'has-memo' : '';
@@ -603,8 +662,9 @@ function render(){
                     }
                     moveSoldRowToBottom(realIndex);
                 }
-                else if (key === 'date') render();
-                else updateRowCalculation(tr, rows[realIndex]);
+                // 값이 바뀌면 전체를 다시 그린다. 그래야 당일손익/총손익 합계가 즉시 정확해짐.
+                // (change 이벤트는 입력칸에서 포커스가 빠질 때 발생하므로 커서가 튀지 않음)
+                else render();
             });
             if(isNum && el.type !== 'number') el.addEventListener('blur', ()=> el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : '');
         };
@@ -650,13 +710,13 @@ function render(){
     } else {
         const bindTarget = (sel, key) => {
             const el = tr.querySelector(sel);
-            el.addEventListener('change', () => { rows[realIndex][key] = toNum(el.value); saveRows(); updateRowCalculation(tr, r); });
+            el.addEventListener('change', () => { rows[realIndex][key] = toNum(el.value); saveRows(); render(); });
             el.addEventListener('blur', () => { el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : ''; });
         };
         bindTarget('.utarget', 'utarget'); bindTarget('.ltarget', 'ltarget'); bindTarget('.autosell', 'autosell');
     }
     tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name.replace(/\s\(합:\d+\)/, ''));
-    updateRowCalculation(tr, r);
+    updateRowCalculation(tr, r, true);   // render() 안에서만 당일손익을 합산
   });
   updateTotalProfit();
 }
@@ -739,6 +799,10 @@ function updateTotalProfit(){
   const cashGap  = realCash - availableCash;
   const gapOn    = (realCash !== 0 && cap > 0);
   const gapOk    = Math.abs(cashGap) < 1000;   // 1,000원 미만이면 수수료 반올림 수준으로 보고 정상 처리
+  // 오늘 찍은 값이 아니면 그 뒤의 매매 때문에 어긋난 것일 수 있으므로 날짜를 같이 보여줌
+  const _t = new Date();
+  const gapDate  = settings.realCashDate || '';
+  const gapStale = gapDate && gapDate !== ((_t.getMonth()+1) + '/' + _t.getDate());
 
   const topEl = $('#topTotal');
   if(topEl) {
@@ -753,7 +817,7 @@ function updateTotalProfit(){
         <span style="margin-left:8px; font-size:0.95em; color:${dayColor}; font-weight:bold;">당일: ${daySign}${fmt(Math.round(_todayProfitSum))}<span style="font-size:0.85em; font-weight:normal;">${dayRateStr}</span></span>
         <span style="margin-left:8px; font-size:0.9em; color:#555;"> | 투입: ${fmt(Math.round(operatingInvest))} | 자산: ${fmt(Math.round(operatingAsset))}</span>
         ${cap > 0 ? `<span title="지금 매수에 쓸 수 있는 현금&#10;= 총 투자금 + 실현손익(아카이브+매도확정) - 보유종목 매수금액" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${availableCash >= 0 ? '#2e7d32' : '#c62828'};">💵 매수가능 현금: ${fmt(Math.round(availableCash))}</span>` : ''}
-        ${gapOn ? `<span title="${gapOk ? '실제 계좌와 일치합니다.' : `엑셀에 보정행 ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}원을 추가한 뒤,&#10;새 합계를 🏛️ 아카이브 칸에 입력하세요.`}" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${gapOk ? '#2e7d32' : '#c62828'};">${gapOk ? '✅ 계좌와 일치' : `⚠️ 오차: ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}`}</span>` : ''}
+        ${gapOn ? `<span title="${gapOk ? '실제 계좌와 일치합니다.' : `엑셀에 보정행 ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}원을 추가한 뒤,&#10;새 합계를 🏛️ 아카이브 칸에 입력하세요.${gapStale ? '&#10;&#10;※ 오늘 찍은 값이 아닙니다. 매매가 있었다면 주문가능금액부터 갱신하세요.' : ''}`}" style="margin-left:8px; font-size:0.9em; font-weight:bold; color:${gapStale ? '#9e9e9e' : (gapOk ? '#2e7d32' : '#c62828')};">${gapOk ? '✅ 계좌와 일치' : `⚠️ 오차: ${cashGap >= 0 ? '+' : ''}${fmt(Math.round(cashGap))}`}${gapDate ? `<span style="font-weight:normal; font-size:0.85em; color:#888;"> (${gapDate}${gapStale ? ' 입력, 갱신필요' : ''})</span>` : ''}</span>` : ''}
     `;
     topEl.className = 'top-total ' + (totalProfit >= 0 ? 'total-pos' : 'total-neg');
   }
@@ -812,9 +876,14 @@ async function fetchPrices(){
   try {
     const res = await fetch(url, {cache:'no-store'}); if(!res.ok) throw new Error('HTTP '+res.status);
     const json = await res.json(); const data = json.data || [];
-    const priceMap = {}; const rateMap = {}; 
+    const priceMap = {}; const rateMap = {};
+    // ⚙️설정의 Code/Price 값을 1순위 키로 사용하고, 없으면 기존 후보들로 넘어감
+    const ck = settings.codeParam || 'code';
+    const pk = settings.priceKey  || 'price';
     data.forEach(d => {
-      const code = d.code || d.cd || d.symbol; const price = d.price || d.nv || d.last; const rate = d.day_rate || d.rate || 0; 
+      const code = d[ck] ?? d.code ?? d.cd ?? d.symbol;
+      const price = d[pk] ?? d.price ?? d.nv ?? d.last;
+      const rate = d.day_rate || d.rate || 0;
       if(code) { priceMap[code] = Number(price); rateMap[code] = Number(rate); }
     });
     let changed = false;
@@ -914,12 +983,13 @@ function restoreBackup(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  $$('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { $$('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentFilter = btn.dataset.filter; render(); }); });
-  $('#hideSoldToggle').addEventListener('change', render);
-  
-  // [추가된 부분] 체크박스 이벤트 연결 (이게 없어서 바로 반응 안했던 것)
-  $('#hideWatchToggle').addEventListener('change', render);
-  $('#mergeToggle').addEventListener('change', render);
+  // 보기 설정은 바꿀 때마다 저장 → 새로고침해도 마지막 상태가 그대로 유지됨
+  const onViewChange = () => { saveViewSettings(true); render(); };
+  $$('.filter-btn').forEach(btn => { btn.addEventListener('click', () => { $$('.filter-btn').forEach(b => b.classList.remove('active')); btn.classList.add('active'); currentFilter = btn.dataset.filter; onViewChange(); }); });
+  $('#hideSoldToggle').addEventListener('change', onViewChange);
+  $('#hideWatchToggle').addEventListener('change', onViewChange);
+  $('#mergeToggle').addEventListener('change', onViewChange);
+  $('#liveToggle').addEventListener('change', () => saveViewSettings(true));
 
   $('#btnSortEmptyQty').addEventListener('click', () => {
     const active = [], sold = [], watch = [];
@@ -967,7 +1037,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let changed = 0;
     rows.forEach(r => {
       if(r.fix > 0) return;
-      if(r.qty > 0 && r.avg > 0) { const buyAmt = r.avg * r.qty; const fee = buyAmt * 0.0026; r.utarget = Math.round((buyAmt + fee + 10000) / r.qty); r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty); changed++; } 
+      if(r.qty > 0 && r.avg > 0) {
+        const buyAmt = r.avg * r.qty;
+        // 왕복 비용(매수 제비용 + 매도 제비용 + 증권거래세). ETF는 거래세 면제
+        const feeRate = FEE_BUY + FEE_SELL + (getMarket(r) === 'etf' ? 0 : TAX_SELL);
+        const fee = buyAmt * feeRate;
+        r.utarget = Math.round((buyAmt + fee + 10000) / r.qty);
+        r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty);
+        changed++;
+      }
       else if(!r.qty && r.cur > 0) { const delta = (r.cur >= 100000) ? 3000 : 300; r.utarget = r.cur + delta; r.ltarget = Math.max(0, r.cur - delta); changed++; }
     });
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
@@ -1034,13 +1112,24 @@ document.addEventListener('DOMContentLoaded', () => {
       document.body.removeChild(ta);
   }
 
-  const CLOUD_URL = "https://script.google.com/macros/s/AKfycbz9ZQB_vvGIkRVbURaj4g8pdeSf2Dy1GoRvn_1F1T_q8lJqvo6DmXZpt6V9-5XjxuvhUA/exec";
-  const CLOUD_ID = "stock-dashboard-rows";
-  $('#cloudSaveBtn').addEventListener('click', async () => { 
-      if(!confirm('클라우드에 저장?')) return; 
+  // 클라우드 주소는 코드에 두지 않고 ⚙️설정(브라우저 저장소)에서 읽는다.
+  // 이 파일이 공개 저장소에 올라가므로 하드코딩하면 누구나 내 데이터를 읽고 덮어쓸 수 있음.
+  const getCloud = () => {
+      const url = (settings.cloudUrl || '').trim();
+      const id  = (settings.cloudId  || '').trim();
+      if(!url || !id) {
+          alert('⚙️ 설정에서 [☁️ 클라우드 URL]과 [☁️ 클라우드 ID]를 먼저 입력하고 [저장]을 눌러주세요.');
+          return null;
+      }
+      return { url, id };
+  };
+
+  $('#cloudSaveBtn').addEventListener('click', async () => {
       saveSettings();
-      try { 
-          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID, { 
+      const c = getCloud(); if(!c) return;
+      if(!confirm('클라우드에 저장?')) return;
+      try {
+          const res = await fetch(c.url + "?id=" + encodeURIComponent(c.id), {
               method: "POST", 
               headers: { "Content-Type": "text/plain;charset=UTF-8" }, 
               body: JSON.stringify({ rows, settings, ts: Date.now() }) 
@@ -1051,17 +1140,21 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   
   $('#cloudLoadBtn').addEventListener('click', async () => {
+      saveSettings();
+      const c = getCloud(); if(!c) return;
       if(!confirm('☁️ 클라우드에서 불러오면 현재 데이터가 덮어씌워집니다.\n\n계속하시겠습니까?\n(직전 데이터는 [↩️ 되돌리기] 버튼으로 복원 가능합니다)')) return;
       saveUndoSnapshot(); // 덮어쓰기 전 자동 스냅샷
       try {
-          const res = await fetch(CLOUD_URL + "?id=" + CLOUD_ID);
+          const res = await fetch(c.url + "?id=" + encodeURIComponent(c.id));
           const json = await res.json();
           if(json.rows) {
               rows = json.rows.map(r => ({ ...r, group: r.group || 'short' }));
               saveRows();
           }
           if(json.settings) {
-              settings = Object.assign(settings, json.settings);
+              // 클라우드에 저장된 옛 주소가 현재 설정을 덮어써서 접속이 끊기는 걸 막는다
+              const keepUrl = settings.cloudUrl, keepId = settings.cloudId;
+              settings = Object.assign(settings, json.settings, { cloudUrl: keepUrl, cloudId: keepId });
               applySettingsToUI();
               saveSettings();
           }
@@ -1082,6 +1175,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   try {
       loadAll();
+      cleanupHistory();   // 더 이상 보유/관망하지 않는 종목의 시세 히스토리 정리
       render();
       startPolling();
       // 이전 스냅샷이 있으면 되돌리기 버튼 표시
@@ -1103,9 +1197,18 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const realCashInput = $('#realCashInput');
       if(realCashInput) {
-          realCashInput.addEventListener('change', () => { saveSettings(); updateTotalProfit(); });
+          realCashInput.addEventListener('change', () => {
+              // 언제 찍은 값인지 같이 저장 → 오래된 값으로 오해하는 걸 막음
+              const t = new Date();
+              settings.realCashDate = (t.getMonth()+1) + '/' + t.getDate();
+              saveSettings(); updateTotalProfit();
+          });
           realCashInput.addEventListener('blur', () => { realCashInput.value = fmt(toNum(realCashInput.value)); });
       }
+      ['#cloudUrlInput', '#cloudIdInput'].forEach(sel => {
+          const el = $(sel);
+          if(el) el.addEventListener('change', () => saveSettings());
+      });
   } catch(e) {
       console.error("초기화 중 오류 발생:", e);
       alert("설정 로드 중 오류가 발생했습니다. '데이터 초기화' 버튼을 눌러주세요.");
