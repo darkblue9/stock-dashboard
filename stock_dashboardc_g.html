@@ -1067,6 +1067,17 @@ document.addEventListener('DOMContentLoaded', () => {
     rows = [...active, ...sold, ...watch]; saveRows(); render();
   });
   $('#btnSetTargets').addEventListener('click', () => {
+    // 이미 넣어둔 목표가를 덮어쓰므로, 덮어쓸 게 있으면 먼저 확인받는다
+    const willOverwrite = rows.filter(r => !(r.fix > 0) && (r.utarget > 0 || r.ltarget > 0)).length;
+    if(willOverwrite > 0) {
+      const ok = confirm(
+        `⚠️ 이미 설정된 목표가가 있습니다.\n\n` +
+        `${willOverwrite}개 종목의 상목표 · 하목표가 자동 계산값으로 덮어써집니다.\n\n` +
+        `계속할까요?`
+      );
+      if(!ok) return;
+      saveUndoSnapshot();
+    }
     let changed = 0;
     rows.forEach(r => {
       if(r.fix > 0) return;
@@ -1084,8 +1095,19 @@ document.addEventListener('DOMContentLoaded', () => {
     if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
   });
   $('#btnResetTargets').addEventListener('click', () => {
+    // 실수로 누르는 일이 잦아 확인창을 둠. 지운 뒤에도 [↩️ 되돌리기]로 복구되도록 스냅샷을 남긴다.
+    const affected = rows.filter(r => (r.utarget > 0 || r.ltarget > 0 || r.autosell > 0)).length;
+    if(affected === 0) { alert('지울 목표가가 없습니다.'); return; }
+    const ok = confirm(
+      `⚠️ 목표가를 정말 초기화할까요?\n\n` +
+      `${affected}개 종목의 상목표 · 하목표 · 자동매도가가 모두 지워집니다.\n\n` +
+      `실수로 누르셨다면 [취소]를 눌러주세요.`
+    );
+    if(!ok) return;
+    saveUndoSnapshot();
     rows.forEach(r => { r.utarget = 0; r.ltarget = 0; r.autosell = 0; });
-    saveRows(); render(); alert('목표가 초기화 완료');
+    saveRows(); render();
+    alert(`목표가 초기화 완료 (${affected}개 종목)\n\n잘못 지우셨다면 [↩️ 되돌리기] 버튼을 누르세요.`);
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
@@ -1197,7 +1219,20 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
-  $('#resetBtn').addEventListener('click', () => { if(confirm('초기화?')) { rows = []; saveRows(); render(); alert('완료'); } });
+  $('#resetBtn').addEventListener('click', () => {
+    // 종목 전체를 지우는 가장 위험한 버튼. 개수를 보여주고 되돌리기 스냅샷을 남긴다.
+    if(rows.length === 0) { alert('이미 비어 있습니다.'); return; }
+    const ok = confirm(
+      `🚨 종목을 전부 삭제합니다\n\n` +
+      `현재 ${rows.length}개 종목(보유·매도·관망 전부)이 목록에서 사라집니다.\n` +
+      `설정값(총 투자금, 아카이브)은 남습니다.\n\n` +
+      `정말 삭제할까요?`
+    );
+    if(!ok) return;
+    saveUndoSnapshot();
+    rows = []; saveRows(); render();
+    alert('전체 삭제 완료\n\n잘못 지우셨다면 [↩️ 되돌리기] 버튼을 누르세요.');
+  });
 
   $('#saveBtn').addEventListener('click', () => { saveSettings(); startPolling(); alert('설정이 저장됐습니다.'); });
   $('#pollSec').addEventListener('change', startPolling);
