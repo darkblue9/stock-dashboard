@@ -100,6 +100,7 @@ col.col-date { width: 78px; } col.col-sdate { width: 78px; }
 col.col-avg { width: 65px; } col.col-qty { width: 35px; } col.col-inv { width: 75px; }
 col.col-target { width: 85px; }
 col.col-autosell { width: 72px; }
+col.col-autoratio { width: 44px; }
 col.col-cur { width: 70px; } col.col-rate { width: 50px; }
 col.col-fix { width: 70px; } col.col-day-profit { width: 65px; } col.col-profit { width: 65px; } 
 col.col-percent { width: 55px; } col.col-act { width: 190px; }
@@ -215,7 +216,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <col class="col-no"> <col class="col-group"> <col class="col-status"> <col class="col-code"> <col class="col-name">
     <col class="col-date"> <col class="col-sdate">
     <col class="col-avg"> <col class="col-qty"> <col class="col-inv">
-    <col class="col-target"> <col class="col-target"> <col class="col-autosell">
+    <col class="col-target"> <col class="col-target"> <col class="col-autosell"> <col class="col-autoratio">
     <col class="col-cur"> <col class="col-rate">
     <col class="col-fix"> <col class="col-day-profit"> <col class="col-profit"> <col class="col-percent"> <col class="col-act">
   </colgroup>
@@ -223,7 +224,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th>
     <th>매수일</th><th>매도일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
-    <th>상목표</th><th>하목표</th><th>자동<br>매도가</th><th>현재가</th><th>일일%</th><th>매도가</th>
+    <th>상목표</th><th>하목표</th><th>자동<br>매도가</th><th title="자동매도 시 보유 주수 중 몇 %를 팔지 (비우면 전량)">자동<br>비중%</th><th>현재가</th><th>일일%</th><th>매도가</th>
     <th>당일손익</th><th>누적손익</th><th>누적%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -327,6 +328,21 @@ function updateRowCalculation(tr, r, accumulate){
       const utDot = tr.querySelector('.ut-dot'); const ltDot = tr.querySelector('.lt-dot');
       if(utDot) utDot.className = 'dot ut-dot' + (r.utarget > 0 && r.cur >= r.utarget ? ' red blink-red-dot' : '');
       if(ltDot) ltDot.className = 'dot lt-dot' + (r.ltarget > 0 && r.cur <= r.ltarget ? ' blue blink-blue-dot' : '');
+  }
+
+  // 자동매도 비중이 실제로 몇 주인지 마우스를 올리면 보이게 한다 (칸이 좁아 숫자만 표시하므로)
+  const ratioTd = tr.querySelector('.ratio-cell');
+  if(ratioTd){
+    const qty = Number(r.qty) || 0;
+    const ratio = Number(r.autoratio) || 0;
+    if(qty > 0 && ratio > 0){
+      const shares = Math.max(1, Math.floor(qty * ratio / 100));
+      ratioTd.title = `자동매도 시 ${qty}주 중 ${shares}주를 매도 (${ratio}%)`;
+    } else if(qty > 0){
+      ratioTd.title = `비우면 전량(${qty}주) 매도`;
+    } else {
+      ratioTd.title = '자동매도 시 보유 주수 중 몇 %를 팔지 (비우면 전량)';
+    }
   }
 
   const curTd = tr.querySelector('.cur').closest('td');
@@ -625,6 +641,7 @@ function render(){
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" value="${r.utarget ? fmt(r.utarget) : ''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" value="${r.ltarget ? fmt(r.ltarget) : ''}"></div></td>
       <td style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" value="${r.autosell ? fmt(r.autosell) : ''}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
+      <td class="ratio-cell" style="${r.autoratio > 0 ? 'background:#fff3e0;' : ''}"><input class="autoratio" value="${r.autoratio ? r.autoratio : ''}" placeholder="전량" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autoratio > 0 ? 'bold' : 'normal'};"></td>
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
@@ -674,6 +691,15 @@ function render(){
         bindInput('.cur', 'cur', true); bindInput('.fix', 'fix', true);
         bindInput('.utarget', 'utarget', true); bindInput('.ltarget', 'ltarget', true);
         bindInput('.autosell', 'autosell', true);
+        // 자동매도 비중은 퍼센트라서 0~100을 벗어나면 자동으로 맞춰준다
+        const elRatio = tr.querySelector('.autoratio');
+        if(elRatio) elRatio.addEventListener('change', () => {
+            let v = Math.round(toNum(elRatio.value));
+            if(v < 0) v = 0;
+            if(v > 100) v = 100;
+            rows[realIndex].autoratio = v;
+            saveRows(); render();
+        });
         tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
         const btnUp = tr.querySelector('.up'); if(btnUp) btnUp.onclick = () => { if(realIndex>0) { [rows[realIndex-1], rows[realIndex]] = [rows[realIndex], rows[realIndex-1]]; saveRows(); render(); } };
         const btnDn = tr.querySelector('.dn'); if(btnDn) btnDn.onclick = () => { if(realIndex<rows.length-1) { [rows[realIndex+1], rows[realIndex]] = [rows[realIndex], rows[realIndex+1]]; saveRows(); render(); } };
@@ -715,6 +741,7 @@ function render(){
             el.addEventListener('blur', () => { el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : ''; });
         };
         bindTarget('.utarget', 'utarget'); bindTarget('.ltarget', 'ltarget'); bindTarget('.autosell', 'autosell');
+        bindTarget('.autoratio', 'autoratio');
     }
     tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name.replace(/\s\(합:\d+\)/, ''));
     updateRowCalculation(tr, r, true);   // render() 안에서만 당일손익을 합산
@@ -1096,7 +1123,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btnResetTargets').addEventListener('click', () => {
     // 실수로 누르는 일이 잦아 확인창을 둠. 지운 뒤에도 [↩️ 되돌리기]로 복구되도록 스냅샷을 남긴다.
-    const affected = rows.filter(r => (r.utarget > 0 || r.ltarget > 0 || r.autosell > 0)).length;
+    const affected = rows.filter(r => (r.utarget > 0 || r.ltarget > 0 || r.autosell > 0 || r.autoratio > 0)).length;
     if(affected === 0) { alert('지울 목표가가 없습니다.'); return; }
     const ok = confirm(
       `⚠️ 목표가를 정말 초기화할까요?\n\n` +
@@ -1105,13 +1132,13 @@ document.addEventListener('DOMContentLoaded', () => {
     );
     if(!ok) return;
     saveUndoSnapshot();
-    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; r.autosell = 0; });
+    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; r.autosell = 0; r.autoratio = 0; });
     saveRows(); render();
     alert(`목표가 초기화 완료 (${affected}개 종목)\n\n잘못 지우셨다면 [↩️ 되돌리기] 버튼을 누르세요.`);
   });
 
   $('#copyTxtBtn').addEventListener('click', () => {
-    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '자동매도가', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
+    const headers = ['구분', '상태', '코드', '이름', '매수일', '매도일', '매수가', '주수', '투입금', '상목표', '하목표', '자동매도가', '자동비중%', '현재가', '일일%', '매도가', '당일손익', '누적손익', '수익률', '메모'];
     const hideSold = $('#hideSoldToggle').checked;
     const hideWatch = $('#hideWatchToggle').checked; 
 
@@ -1138,7 +1165,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if(r.qty>0 && r.fix>0) statusStr='매도됨';
       else if(r.qty>0 && !r.fix) statusStr='운영중';
       
-      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.autosell||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
+      return [(r.group === 'long' ? '장투' : '단타'), statusStr, r.code||'', r.name||'', r.date||'', r.sellDate||'', r.avg||0, r.qty||0, (r.avg||0)*(r.qty||0), r.utarget||0, r.ltarget||0, r.autosell||0, r.autoratio||0, r.cur||0, drStr, r.fix||0, Math.round(dayProfit), Math.round(won), (pct||0).toFixed(2)+'%', r.memo||''].join('\t');
     });
     
     const textToCopy = headers.join('\t') + '\n' + lines.join('\n');
