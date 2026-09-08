@@ -224,7 +224,7 @@ col.col-percent { width: 55px; } col.col-act { width: 190px; }
     <th>No</th><th>구분</th><th>운영<br>상태</th><th>코드</th><th>이름</th>
     <th>매수일</th><th>매도일</th>
     <th>매수가</th><th>주수</th><th>투입금</th>
-    <th>상목표</th><th>하목표</th><th>자동<br>매도가</th><th title="자동매도 시 보유 주수 중 몇 %를 팔지 (비우면 전량)">자동<br>비중%</th><th>현재가</th><th>일일%</th><th>매도가</th>
+    <th>상목표</th><th>하목표</th><th>자동<br>매도가</th><th title="자동매도 시 보유 주수 중 몇 %를 팔지 (100 = 전량)">자동<br>비중%</th><th>현재가</th><th>일일%</th><th>매도가</th>
     <th>당일손익</th><th>누적손익</th><th>누적%</th><th>동작</th>
   </tr></thead>
   <tbody id="tbody"></tbody>
@@ -268,6 +268,9 @@ const FEE_BUY=0.000036396, FEE_SELL=0.000036396, TAX_SELL=0.0015;
 /* === 시장 구분 (코스피 / 코스닥 / ETF) ===
    ETF는 국내 상장분이라 매도 시 증권거래세 0.15%가 면제됨.
    코스피와 코스닥은 현재 세율이 같지만 구분 표시용으로 나눠둠. */
+// 자동매도 비중 기본값(%). 새 종목과, 아직 값이 없던 기존 종목에 적용된다.
+const DEFAULT_AUTORATIO = 50;
+
 const MARKETS = ['kospi','kosdaq','etf'];
 const MARKET_INFO = {
   kospi : { label:'코', cls:'mk-kospi',  title:'코스피 — 매도 시 증권거래세 0.15% (클릭하면 변경)' },
@@ -335,13 +338,15 @@ function updateRowCalculation(tr, r, accumulate){
   if(ratioTd){
     const qty = Number(r.qty) || 0;
     const ratio = Number(r.autoratio) || 0;
-    if(qty > 0 && ratio > 0){
+    if(qty <= 0){
+      ratioTd.title = '자동매도 시 보유 주수 중 몇 %를 팔지 (100 = 전량)';
+    } else if(ratio >= 100){
+      ratioTd.title = `자동매도 시 전량 ${qty}주 매도 (100%)`;
+    } else if(ratio > 0){
       const shares = Math.max(1, Math.floor(qty * ratio / 100));
-      ratioTd.title = `자동매도 시 ${qty}주 중 ${shares}주를 매도 (${ratio}%)`;
-    } else if(qty > 0){
-      ratioTd.title = `비우면 전량(${qty}주) 매도`;
+      ratioTd.title = `자동매도 시 ${qty}주 중 ${shares}주 매도 (${ratio}%)`;
     } else {
-      ratioTd.title = '자동매도 시 보유 주수 중 몇 %를 팔지 (비우면 전량)';
+      ratioTd.title = '0% — 자동매도 설정 안 함';
     }
   }
 
@@ -411,7 +416,11 @@ function loadAll(){
   // 최초 1회: 종목명(_D/_P/ETF 브랜드)에서 추정한 시장 구분을 실제 값으로 굳혀둔다.
   // 이렇게 해두면 나중에 종목명을 고쳐도 세금 계산이 조용히 바뀌지 않는다.
   let mkMigrated = false;
-  rows.forEach(r => { if(!MARKETS.includes(r.market)) { r.market = getMarket(r); mkMigrated = true; } });
+  rows.forEach(r => {
+    if(!MARKETS.includes(r.market)) { r.market = getMarket(r); mkMigrated = true; }
+    // 자동매도 비중은 항상 숫자를 갖게 한다 (값이 없으면 화면엔 빈칸, 복사하면 0이 나와 서로 어긋났음)
+    if(typeof r.autoratio !== 'number' || isNaN(r.autoratio)) { r.autoratio = DEFAULT_AUTORATIO; mkMigrated = true; }
+  });
   if(mkMigrated) saveRows();
 
   const savedSettings = loadJSON(KEY_SET,{});
@@ -641,7 +650,7 @@ function render(){
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" value="${r.utarget ? fmt(r.utarget) : ''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" value="${r.ltarget ? fmt(r.ltarget) : ''}"></div></td>
       <td style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" value="${r.autosell ? fmt(r.autosell) : ''}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
-      <td class="ratio-cell" style="${r.autoratio > 0 ? 'background:#fff3e0;' : ''}"><input class="autoratio" value="${r.autoratio ? r.autoratio : ''}" placeholder="전량" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autoratio > 0 ? 'bold' : 'normal'};"></td>
+      <td class="ratio-cell" style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autoratio" value="${r.autoratio ?? DEFAULT_AUTORATIO}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
         <div class="trend-dots"></div> 
@@ -1123,16 +1132,17 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#btnResetTargets').addEventListener('click', () => {
     // 실수로 누르는 일이 잦아 확인창을 둠. 지운 뒤에도 [↩️ 되돌리기]로 복구되도록 스냅샷을 남긴다.
-    const affected = rows.filter(r => (r.utarget > 0 || r.ltarget > 0 || r.autosell > 0 || r.autoratio > 0)).length;
+    const affected = rows.filter(r => (r.utarget > 0 || r.ltarget > 0 || r.autosell > 0)).length;
     if(affected === 0) { alert('지울 목표가가 없습니다.'); return; }
     const ok = confirm(
       `⚠️ 목표가를 정말 초기화할까요?\n\n` +
-      `${affected}개 종목의 상목표 · 하목표 · 자동매도가가 모두 지워집니다.\n\n` +
+      `${affected}개 종목의 상목표 · 하목표 · 자동매도가가 지워지고,\n` +
+      `자동비중은 기본값 ${DEFAULT_AUTORATIO}%로 돌아갑니다.\n\n` +
       `실수로 누르셨다면 [취소]를 눌러주세요.`
     );
     if(!ok) return;
     saveUndoSnapshot();
-    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; r.autosell = 0; r.autoratio = 0; });
+    rows.forEach(r => { r.utarget = 0; r.ltarget = 0; r.autosell = 0; r.autoratio = DEFAULT_AUTORATIO; });
     saveRows(); render();
     alert(`목표가 초기화 완료 (${affected}개 종목)\n\n잘못 지우셨다면 [↩️ 되돌리기] 버튼을 누르세요.`);
   });
@@ -1245,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
       } catch(e) { alert('에러: '+e.message); }
   });
 
-  $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short' }); saveRows(); render(); });
+  $('#addRowBtn').addEventListener('click', () => { rows.unshift({ group: currentFilter==='long'?'long':'short', autoratio: DEFAULT_AUTORATIO }); saveRows(); render(); });
   $('#resetBtn').addEventListener('click', () => {
     // 종목 전체를 지우는 가장 위험한 버튼. 개수를 보여주고 되돌리기 스냅샷을 남긴다.
     if(rows.length === 0) { alert('이미 비어 있습니다.'); return; }
