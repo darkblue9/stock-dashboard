@@ -271,6 +271,30 @@ const FEE_BUY=0.000036396, FEE_SELL=0.000036396, TAX_SELL=0.0015;
 // 자동매도 비중 기본값(%). 새 종목과, 아직 값이 없던 기존 종목에 적용된다.
 const DEFAULT_AUTORATIO = 50;
 
+/* === 종목 단위로 공유하는 항목 ===
+   상목표·하목표·자동매도가·자동비중은 매수 건마다 따로 두는 값이 아니라
+   종목 하나당 하나로 움직인다. 그래서 어느 행에서 고치든 같은 종목의
+   모든 매수 건에 똑같이 적용한다. (종목합산 화면의 맨 위 행에서 고쳐도 동일)
+   묶는 기준은 종목합산과 같다: 코드 + 단타/장투 + 매도여부 */
+const SHARED_KEYS = ['utarget','ltarget','autosell','autoratio'];
+
+function rowGroupKey(r){
+  const sold = (Number(r.fix) || 0) > 0 ? 'SOLD' : 'ACTIVE';
+  return (r.code || '') + '_' + (r.group || 'short') + '_' + sold;
+}
+
+// 값을 기록한다. 공유 항목이면 같은 종목의 모든 행에 반영하고, 반영된 행 수를 돌려준다.
+function setRowField(index, key, val){
+  const base = rows[index];
+  if(!base) return 0;
+  // 코드가 비어 있으면 묶을 근거가 없으므로 그 행만 바꾼다
+  if(!SHARED_KEYS.includes(key) || !base.code){ base[key] = val; return 1; }
+  const k = rowGroupKey(base);
+  let n = 0;
+  rows.forEach(r => { if(rowGroupKey(r) === k){ r[key] = val; n++; } });
+  return n;
+}
+
 const MARKETS = ['kospi','kosdaq','etf'];
 const MARKET_INFO = {
   kospi : { label:'코', cls:'mk-kospi',  title:'코스피 — 매도 시 증권거래세 0.15% (클릭하면 변경)' },
@@ -679,7 +703,7 @@ function render(){
             el.addEventListener('change', ()=>{
                 let val = el.value; if(isNum) val = toNum(val);
                 const prevFix = (key === 'fix') ? (Number(rows[realIndex].fix) || 0) : null;
-                rows[realIndex][key] = val;
+                setRowField(realIndex, key, val);   // 공유 항목이면 같은 종목 전체에 반영
                 saveRows();
                 if (key === 'fix') {
                     if (val > 0 && prevFix === 0) {
@@ -706,7 +730,7 @@ function render(){
             let v = Math.round(toNum(elRatio.value));
             if(v < 0) v = 0;
             if(v > 100) v = 100;
-            rows[realIndex].autoratio = v;
+            setRowField(realIndex, 'autoratio', v);   // 같은 종목의 모든 매수 건에 반영
             saveRows(); render();
         });
         tr.querySelector('.del').onclick = () => { if(confirm('삭제?')) { rows.splice(realIndex,1); saveRows(); render(); } };
@@ -744,9 +768,15 @@ function render(){
              if(newMemo !== null) { rows[realIndex].memo = newMemo; saveRows(); render(); }
         });
     } else {
+        // 종목합산 화면의 맨 위 한 행을 고치면 그 종목의 매수 건 전부에 반영된다
         const bindTarget = (sel, key) => {
             const el = tr.querySelector(sel);
-            el.addEventListener('change', () => { rows[realIndex][key] = toNum(el.value); saveRows(); render(); });
+            el.addEventListener('change', () => {
+                let val = toNum(el.value);
+                if(key === 'autoratio'){ val = Math.round(val); if(val < 0) val = 0; if(val > 100) val = 100; }
+                setRowField(realIndex, key, val);
+                saveRows(); render();
+            });
             el.addEventListener('blur', () => { el.value = rows[realIndex][key] ? fmt(rows[realIndex][key]) : ''; });
         };
         bindTarget('.utarget', 'utarget'); bindTarget('.ltarget', 'ltarget'); bindTarget('.autosell', 'autosell');
@@ -1114,21 +1144,41 @@ document.addEventListener('DOMContentLoaded', () => {
       if(!ok) return;
       saveUndoSnapshot();
     }
-    let changed = 0;
-    rows.forEach(r => {
+    // 목표가는 종목당 하나이므로, 나눠 산 종목은 합쳐서(총 투입금 ÷ 총 주수) 한 번에 계산한다.
+    // 예전처럼 매수 건마다 따로 계산하면 같은 종목인데 목표가가 서로 달라지고,
+    // 2번에 나눠 샀을 때 목표 수익이 10,000원이 아니라 20,000원이 되어버린다.
+    const groups = new Map();
+    rows.forEach((r, i) => {
       if(r.fix > 0) return;
-      if(r.qty > 0 && r.avg > 0) {
-        const buyAmt = r.avg * r.qty;
-        // 왕복 비용(매수 제비용 + 매도 제비용 + 증권거래세). ETF는 거래세 면제
-        const feeRate = FEE_BUY + FEE_SELL + (getMarket(r) === 'etf' ? 0 : TAX_SELL);
-        const fee = buyAmt * feeRate;
-        r.utarget = Math.round((buyAmt + fee + 10000) / r.qty);
-        r.ltarget = Math.round((buyAmt + fee - 10000) / r.qty);
-        changed++;
-      }
-      else if(!r.qty && r.cur > 0) { const delta = (r.cur >= 100000) ? 3000 : 300; r.utarget = r.cur + delta; r.ltarget = Math.max(0, r.cur - delta); changed++; }
+      const k = r.code ? rowGroupKey(r) : ('__solo_' + i);
+      if(!groups.has(k)) groups.set(k, []);
+      groups.get(k).push(r);
     });
-    if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}건)`); } else alert('대상 없음');
+
+    let changed = 0;
+    groups.forEach(lots => {
+      const totalQty    = lots.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+      const totalInvest = lots.reduce((s, r) => s + (Number(r.avg) || 0) * (Number(r.qty) || 0), 0);
+      let up = 0, lo = 0;
+
+      if(totalQty > 0 && totalInvest > 0){
+        // 왕복 비용(매수 제비용 + 매도 제비용 + 증권거래세). ETF는 거래세 면제
+        const feeRate = FEE_BUY + FEE_SELL + (getMarket(lots[0]) === 'etf' ? 0 : TAX_SELL);
+        const fee = totalInvest * feeRate;
+        up = Math.round((totalInvest + fee + 10000) / totalQty);
+        lo = Math.round((totalInvest + fee - 10000) / totalQty);
+      } else {
+        // 관망 종목: 현재가 기준으로 위아래 일정 폭
+        const cur = Number(lots[0].cur) || 0;
+        if(cur <= 0) return;
+        const delta = (cur >= 100000) ? 3000 : 300;
+        up = cur + delta;
+        lo = Math.max(0, cur - delta);
+      }
+      lots.forEach(r => { r.utarget = up; r.ltarget = lo; });
+      changed++;
+    });
+    if(changed > 0) { saveRows(); render(); alert(`목표가 세팅 완료 (${changed}개 종목)`); } else alert('대상 없음');
   });
   $('#btnResetTargets').addEventListener('click', () => {
     // 실수로 누르는 일이 잦아 확인창을 둠. 지운 뒤에도 [↩️ 되돌리기]로 복구되도록 스냅샷을 남긴다.
