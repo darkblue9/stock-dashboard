@@ -77,6 +77,33 @@ td				{FONT-FAMILY :굴림; FONT-SIZE : 9 pt; }
 	</form>
 	<!-- Search Google -->
 </td>
+<td>
+	<!-- Search Hito -->
+	 <script type="text/javascript">
+		function hitoSearch() {
+			var q = document.hitoForm.q.value;
+			if (q == "") {
+				alert("검색어를 입력하세요.");
+				document.hitoForm.q.focus();
+				return false;
+			} else {
+				var url = "https://hitomi.la/galleries/" + encodeURIComponent(q) + ".html";
+				window.document.location.href = url;
+			}
+		}
+	 </script>
+	 	<form name="hitoForm" method="get" action=""><input type="hidden" name="hl" value="ko"><input type="hidden" name="gl" value="uk">
+		<table bgcolor="#FFFFFF">
+			<tr>
+			<td><a href="http://www.google.com/">Hito Search</a>
+				<input type="text" name="q" size="10" maxlength="255" value="" style="ime-mode:active;" autocomplete="off" />
+				<input type="button" name="btnG" value="검색" onclick="hitoSearch()" />
+			</td>
+			</tr>
+		</table>
+	</form>
+	<!-- Search Hito -->
+</td>
 </tr>
 <tr>
 <td width="25%" valign="top">
