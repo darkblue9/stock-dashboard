@@ -578,9 +578,10 @@ function aggregateRows(originalRows) {
         const rowDayProfit = calculateDayProfitForRow(r);
 
         if (!map.has(key)) {
-            map.set(key, { 
-                ...r, _idx: originalIndex, _isAgg: false, _count: 1, 
-                _totalQty: Number(r.qty) || 0, 
+            map.set(key, {
+                ...r, _idx: originalIndex, _isAgg: false, _count: 1,
+                _members: [r],                       // 시세 갱신 때 당일손익을 다시 더하기 위해 원본을 기억
+                _totalQty: Number(r.qty) || 0,
                 _totalInvest: (Number(r.avg) || 0) * (Number(r.qty) || 0),
                 _totalSellAmt: (Number(r.fix) || 0) * (Number(r.qty) || 0),
                 _totalDayProfit: rowDayProfit
@@ -590,7 +591,7 @@ function aggregateRows(originalRows) {
             const curQty = Number(r.qty) || 0;
             const curInvest = (Number(r.avg) || 0) * curQty;
             const curSellAmt = (Number(r.fix) || 0) * curQty;
-            entry._isAgg = true; entry._count++; 
+            entry._isAgg = true; entry._count++; entry._members.push(r);
             entry._totalQty += curQty; entry._totalInvest += curInvest; entry._totalSellAmt += curSellAmt;
             entry._totalDayProfit += rowDayProfit;
             if (r.date < entry.date) entry.date = r.date;
@@ -954,6 +955,11 @@ function applyPriceUpdate(priceMap, rateMap){
       const dr = r.dRate || 0;
       drEl.textContent = (dr > 0 ? '+' : '') + dr + '%';
       drEl.className = 'dr ' + (dr > 0 ? 'profit-pos' : (dr < 0 ? 'profit-neg' : ''));
+    }
+    // 종목합산 행의 당일손익은 합산할 때 한 번 계산된 값이라 그냥 두면 멈춰버린다.
+    // 묶인 매수 건들의 최신 시세로 다시 더해준다.
+    if(r._isAgg && Array.isArray(r._members)){
+      r.dayProfit = r._members.reduce((s, m) => s + calculateDayProfitForRow(m), 0);
     }
     updateRowCalculation(tr, r, true);
   });
