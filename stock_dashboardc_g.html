@@ -86,6 +86,23 @@ td.cur-cell .trend-dots { position: absolute; right: 2px; bottom: 2px; display:f
 .d-day-badge.new { background: #ff9800; } 
 .d-day-badge.old { background: #607d8b; } 
 
+/* === 자동매도 예상수익 힌트 === */
+/* 아이콘은 칸 안에 겹쳐 띄워서 표 폭을 전혀 늘리지 않는다 (금액은 오른쪽 정렬이라 왼쪽이 빔) */
+td.autosell-cell { position: relative; }
+.profit-hint { position:absolute; left:2px; top:50%; transform:translateY(-50%); font-size:10px; line-height:1;
+               cursor:help; opacity:.6; z-index:2; }
+.profit-hint:hover { opacity:1; }
+.profit-tooltip { display:none; position:absolute; left:-10px; top:100%; z-index:1000; width:205px;
+                  background:#333; color:#fff; padding:8px 10px; border-radius:5px; font-size:11px;
+                  font-weight:normal; line-height:1.5; text-align:left; box-shadow:2px 3px 8px rgba(0,0,0,.35); }
+.profit-hint:hover + .profit-tooltip { display:block; }
+.profit-tooltip .pt-ttl { font-weight:bold; display:block; margin-bottom:4px; color:#ffd54f; }
+.profit-tooltip .pt-row { display:flex; justify-content:space-between; gap:8px; }
+.profit-tooltip .pt-row span:first-child { color:#bbb; }
+.profit-tooltip .pt-sum { margin-top:5px; padding-top:5px; border-top:1px solid #666;
+                          text-align:right; font-weight:bold; font-size:12px; }
+.profit-tooltip .pt-note { color:#ffab91; }
+
 .row-no { cursor: pointer; position: relative; }
 .row-no:hover { background-color: #e3f2fd; } 
 .memo-indicator { position: absolute; top: 2px; right: 2px; width: 6px; height: 6px; background: red; border-radius: 50%; display: none;}
@@ -272,11 +289,11 @@ const FEE_BUY=0.000036396, FEE_SELL=0.000036396, TAX_SELL=0.0015;
 const DEFAULT_AUTORATIO = 50;
 
 /* === 종목 단위로 공유하는 항목 ===
-   상목표·하목표·자동매도가·자동비중은 매수 건마다 따로 두는 값이 아니라
+   상목표·하목표·자동매도가·자동비중·메모는 매수 건마다 따로 두는 값이 아니라
    종목 하나당 하나로 움직인다. 그래서 어느 행에서 고치든 같은 종목의
    모든 매수 건에 똑같이 적용한다. (종목합산 화면의 맨 위 행에서 고쳐도 동일)
    묶는 기준은 종목합산과 같다: 코드 + 단타/장투 + 매도여부 */
-const SHARED_KEYS = ['utarget','ltarget','autosell','autoratio'];
+const SHARED_KEYS = ['utarget','ltarget','autosell','autoratio','memo'];
 
 function rowGroupKey(r){
   const sold = (Number(r.fix) || 0) > 0 ? 'SOLD' : 'ACTIVE';
@@ -322,6 +339,44 @@ function calcProfit(avg,cur,fix,qty,market){
   const totalCost = (buyAmt * FEE_BUY) + (sellAmt * (FEE_SELL + tax));
   const profit = sellAmt - buyAmt - totalCost;
   return {won:profit, pct: (profit/buyAmt)*100};
+}
+
+// 자동매도가로 팔았을 때 얼마가 남는지 미리 계산해, 작은 아이콘 + 설명 레이어로 만들어 준다.
+// 자동매도가가 없거나 이미 매도한 종목이면 빈 문자열(= 아이콘 없음).
+function autoSellHint(r){
+  const sell = Number(r.autosell) || 0;
+  const qty  = Number(r.qty) || 0;
+  const avg  = Number(r.avg) || 0;
+  if(sell <= 0 || (Number(r.fix) || 0) > 0) return '';
+
+  const icon = `<span class="profit-hint">💰</span>`;
+  const wrap = (inner) => `${icon}<div class="profit-tooltip"><span class="pt-ttl">자동매도 예상</span>${inner}</div>`;
+
+  if(qty <= 0 || avg <= 0) return wrap(`<div class="pt-note">보유 수량·매수가가 없어<br>계산할 수 없습니다.</div>`);
+
+  const ratio = Math.min(100, Math.max(0, Number(r.autoratio) || 0));
+  if(ratio <= 0) return wrap(`<div class="pt-note">자동비중이 0%라<br>매도되지 않습니다.</div>`);
+
+  const shares  = Math.max(1, Math.floor(qty * ratio / 100));
+  const buyAmt  = avg * shares;
+  const sellAmt = sell * shares;
+  const tax  = (getMarket(r) === 'etf') ? 0 : TAX_SELL;      // ETF는 증권거래세 면제
+  const cost = buyAmt * FEE_BUY + sellAmt * (FEE_SELL + tax);
+  const won  = sellAmt - buyAmt - cost;
+  const pct  = (won / buyAmt) * 100;
+  const sign = won >= 0 ? '+' : '';
+  const col  = won >= 0 ? '#ff8a80' : '#82b1ff';
+  const left = qty - shares;
+
+  return wrap(
+      `<div class="pt-row"><span>매도가</span><span>${fmt(sell)}원</span></div>`
+    + `<div class="pt-row"><span>매도수량</span><span>${qty}주 중 ${shares}주 (${ratio}%)</span></div>`
+    + `<div class="pt-row"><span>매도금액</span><span>${fmt(Math.round(sellAmt))}원</span></div>`
+    + `<div class="pt-row"><span>매수원가</span><span>${fmt(Math.round(buyAmt))}원</span></div>`
+    + `<div class="pt-row"><span>수수료·세금</span><span>-${fmt(Math.round(cost))}원</span></div>`
+    + (left > 0 ? `<div class="pt-row"><span>남는 수량</span><span>${left}주</span></div>` : '')
+    + `<div class="pt-sum" style="color:${col}">${sign}${fmt(Math.round(won))}원 (${sign}${pct.toFixed(2)}%)</div>`
+  );
 }
 
 // [핵심] 함수 정의 최상단 이동
@@ -674,7 +729,7 @@ function render(){
       <td><input class="inv" readonly value="${fmt((r.avg||0)*(r.qty||0))}"></td>
       <td><div class="target-cell"><span class="dot ut-dot"></span><input class="utarget" value="${r.utarget ? fmt(r.utarget) : ''}"></div></td>
       <td><div class="target-cell"><span class="dot lt-dot"></span><input class="ltarget" value="${r.ltarget ? fmt(r.ltarget) : ''}"></div></td>
-      <td style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" value="${r.autosell ? fmt(r.autosell) : ''}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
+      <td class="autosell-cell" style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autosell" value="${r.autosell ? fmt(r.autosell) : ''}" style="width:100%; padding:2px 2px 2px 13px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};">${autoSellHint(r)}</td>
       <td class="ratio-cell" style="${r.autosell > 0 ? 'background:#fff3e0;' : ''}"><input class="autoratio" value="${r.autoratio ?? DEFAULT_AUTORATIO}" style="width:100%; padding:2px; box-sizing:border-box; text-align:right; border:none; background:transparent; font-size:12px; height:26px; color:#e65100; font-weight:${r.autosell > 0 ? 'bold' : 'normal'};"></td>
       <td class="cur-cell">
         <input class="cur" value="${r.cur?fmt(r.cur):''}" style="font-weight:bold;">
@@ -763,11 +818,6 @@ function render(){
                 saveRows(); render(); 
             }
         };
-        tr.querySelector('.row-no').addEventListener('click', (e) => {
-             if(e.target.classList.contains('memo-tooltip')) return;
-             const newMemo = prompt("📝 메모:", rows[realIndex].memo || "");
-             if(newMemo !== null) { rows[realIndex].memo = newMemo; saveRows(); render(); }
-        });
     } else {
         // 종목합산 화면의 맨 위 한 행을 고치면 그 종목의 매수 건 전부에 반영된다
         const bindTarget = (sel, key) => {
@@ -783,6 +833,12 @@ function render(){
         bindTarget('.utarget', 'utarget'); bindTarget('.ltarget', 'ltarget'); bindTarget('.autosell', 'autosell');
         bindTarget('.autoratio', 'autoratio');
     }
+    // 메모도 종목당 하나로 움직이므로, 종목합산 행에서 고쳐도 같은 종목 전체에 반영된다
+    tr.querySelector('.row-no').addEventListener('click', (e) => {
+         if(e.target.classList.contains('memo-tooltip')) return;
+         const newMemo = prompt("📝 메모:", rows[realIndex].memo || "");
+         if(newMemo !== null) { setRowField(realIndex, 'memo', newMemo); saveRows(); render(); }
+    });
     tr.querySelector('.chart-btn').onclick = () => showChart(r.code, r.name.replace(/\s\(합:\d+\)/, ''));
     updateRowCalculation(tr, r, true);   // render() 안에서만 당일손익을 합산
   });
